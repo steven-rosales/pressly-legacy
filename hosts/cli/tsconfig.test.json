@@ -16,7 +16,7 @@
   "exclude": ["dist", "node_modules"],
   "references": [
     {
-      "path": "../../generated/runtime/tsconfig.json"
+      "path": "../../topology/tsconfig.build.json"
     },
     {
       "path": "../../platform/cells/tsconfig.json"

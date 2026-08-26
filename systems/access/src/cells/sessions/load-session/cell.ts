@@ -1,4 +1,4 @@
-import { bindCell, declareQueryCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { loadSessionContract } from './contract.ts';
 import type { LoadSession } from './load-session.usecase.ts';
 import {
@@ -8,11 +8,12 @@ import {
   type OperationOutput,
 } from '../../../model/boundary/cell-contract.ts';
 
-export const loadSessionCellDeclaration = declareQueryCell<
+export const loadSessionCellDeclaration = defineOperation<
   OperationInput<LoadSession>,
   OperationOutput<LoadSession>,
   OperationFailure<LoadSession>
 >({
+  kind: 'query',
   id: 'access.load-session.v1',
   authentication: 'none',
   contract: loadSessionContract,
@@ -22,4 +23,4 @@ export const loadSessionCellDeclaration = declareQueryCell<
 });
 
 export const makeLoadSessionCell = (operation: LoadSession) =>
-  bindCell(loadSessionCellDeclaration, resultOperation(operation));
+  defineOperation(loadSessionCellDeclaration, resultOperation(operation));

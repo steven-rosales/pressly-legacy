@@ -1,5 +1,5 @@
 import express, { type RequestHandler, type Router } from 'express';
-import { bindCell, defineHttpCatalog } from '@pressly/cells';
+import { defineOperation, defineHttpCatalog } from '@pressly/cells';
 import { listDeadEventsCellDeclaration } from '@pressly/ingress-system/operations/inbox/list-dead-events/cell';
 import { replayDeadEventCellDeclaration } from '@pressly/ingress-system/operations/inbox/replay-dead-event/cell';
 import type { IngressStateSystem } from '@pressly/ingress-system/testing/assembly';
@@ -25,8 +25,11 @@ export const makeWebhookIngestionRoutes = (input: {
 }): Router => {
   const router = express.Router();
   const catalog = defineHttpCatalog([
-    bindCell(listDeadEventsCellDeclaration, input.cells.listDeadEvents.execute),
-    bindCell(
+    defineOperation(
+      listDeadEventsCellDeclaration,
+      input.cells.listDeadEvents.execute,
+    ),
+    defineOperation(
       replayDeadEventCellDeclaration,
       input.cells.replayDeadEvent.execute,
     ),

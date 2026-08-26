@@ -320,15 +320,14 @@ export default tseslint.config(
                 'Import database runtime primitives through explicit @pressly/postgres subpaths.',
             },
             {
-              regex:
-                '^@pressly/(?:experience-[^/]+|[^/]+-system|topology)(?:/.*)?$',
+              regex: '^@pressly/(?:experience-[^/]+|[^/]+-system)(?:/.*)?$',
               message:
-                'Hosts consume generated runtime bindings and Platform mechanisms, never business owners directly.',
+                'Hosts consume topology bindings and Platform mechanisms, never business owners directly.',
             },
             {
-              regex: '^(?:\\.\\./)+(?:systems|experiences|topology)(?:/.*)?$',
+              regex: '^(?:\\.\\./)+(?:systems|experiences)(?:/.*)?$',
               message:
-                'Hosts consume generated runtime bindings and never reach into business roots by relative path.',
+                'Hosts consume topology bindings and never reach into business roots by relative path.',
             },
           ],
         },
@@ -352,49 +351,6 @@ export default tseslint.config(
                 '^(?:express|cors|helmet|dotenv|@sentry(?:/.*)?|node:(?:fs|os|child_process|process))(?:/.*)?$',
               message:
                 'Topology assembles injected structural capabilities; protocol frameworks and process effects belong to hosts.',
-            },
-          ],
-        },
-      ],
-    },
-  },
-
-  {
-    files: ['generated/runtime/src/**/*.{ts,tsx}'],
-    rules: {
-      'no-restricted-globals': [
-        'error',
-        {
-          name: 'window',
-          message:
-            'Generated bindings receive browser effects from their owning host.',
-        },
-        {
-          name: 'document',
-          message:
-            'Generated bindings receive browser effects from their owning host.',
-        },
-        {
-          name: 'localStorage',
-          message:
-            'Generated bindings receive browser effects from their owning host.',
-        },
-        {
-          name: 'process',
-          message:
-            'Generated bindings receive process effects from their owning host.',
-        },
-      ],
-      'no-restricted-imports': [
-        'error',
-        {
-          ...aggregatePackageRootRestrictions,
-          patterns: [
-            {
-              regex:
-                '^(?:dotenv|@sentry(?:/.*)?|node:(?:fs|os|child_process|process))(?:/.*)?$',
-              message:
-                'Generated runtime binds injected effects; vendor and process mechanisms belong to hosts.',
             },
           ],
         },
@@ -509,7 +465,6 @@ export default tseslint.config(
       'experiences/**/*.{js,jsx,mjs,cjs,ts,tsx}',
       'platform/**/*.{js,jsx,mjs,cjs,ts,tsx}',
       'topology/**/*.{js,jsx,mjs,cjs,ts,tsx}',
-      'generated/**/*.{js,jsx,mjs,cjs,ts,tsx}',
     ],
     ignores: ['hosts/**/test/**/*.{js,jsx,mjs,cjs,ts,tsx}'],
     plugins: { boundaries },
@@ -520,7 +475,6 @@ export default tseslint.config(
         { type: 'experience', pattern: 'experiences/*/**' },
         { type: 'platform', pattern: 'platform/*/**' },
         { type: 'topology', pattern: 'topology/**' },
-        { type: 'generated', pattern: 'generated/**' },
       ],
     },
     rules: {
@@ -534,7 +488,7 @@ export default tseslint.config(
               disallow: {
                 to: {
                   element: {
-                    types: { anyOf: ['system', 'experience', 'topology'] },
+                    types: { anyOf: ['system', 'experience'] },
                   },
                 },
               },
@@ -545,13 +499,7 @@ export default tseslint.config(
                 to: {
                   element: {
                     types: {
-                      anyOf: [
-                        'host',
-                        'system',
-                        'experience',
-                        'topology',
-                        'generated',
-                      ],
+                      anyOf: ['host', 'system', 'experience', 'topology'],
                     },
                   },
                 },
@@ -563,7 +511,7 @@ export default tseslint.config(
                 to: {
                   element: {
                     types: {
-                      anyOf: ['host', 'experience', 'topology', 'generated'],
+                      anyOf: ['host', 'experience', 'topology'],
                     },
                   },
                 },
@@ -574,7 +522,7 @@ export default tseslint.config(
               disallow: {
                 to: {
                   element: {
-                    types: { anyOf: ['host', 'topology', 'generated'] },
+                    types: { anyOf: ['host', 'topology'] },
                   },
                 },
               },
@@ -588,7 +536,6 @@ export default tseslint.config(
   {
     files: [
       'experiences/*/src/**/*.{ts,tsx}',
-      'generated/**/*.{ts,tsx}',
       'hosts/*/src/**/*.{ts,tsx}',
       'platform/*/src/**/*.{ts,tsx}',
       'systems/*/src/**/*.{ts,tsx}',

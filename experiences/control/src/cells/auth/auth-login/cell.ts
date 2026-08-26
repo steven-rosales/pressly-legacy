@@ -5,13 +5,14 @@ import type {
 } from "../../../auth/model/schemas.ts"
 import { controlLoginContract } from "./contract.ts"
 import { loginSurface } from "./http.ts"
-import { declareCommandCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
-export const controlLoginCellDeclaration = declareCommandCell<
+export const controlLoginCellDeclaration = defineOperation<
   LoginInput,
   ControlLoginOutput,
   ControlLoginFailure
 >({
+  kind: "command",
   id: "control.auth-login.v1",
   authentication: "none",
   contract: controlLoginContract,

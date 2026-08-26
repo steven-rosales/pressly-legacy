@@ -13,8 +13,8 @@ import {
 import type {
   ControlBrowserHttpClient,
   ControlRequestErrorKind,
-} from '@pressly/generated-runtime/browser/control';
-import { makeControlRequestError } from '@pressly/generated-runtime/browser/control';
+} from '@pressly/topology/browser';
+import { makeControlRequestError } from '@pressly/topology/browser';
 import { type ZodType } from 'zod';
 
 const requestTimeoutMilliseconds = 15_000;

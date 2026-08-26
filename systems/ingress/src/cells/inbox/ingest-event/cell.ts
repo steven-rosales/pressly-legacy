@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import type {
   IngestWebhookEventCommand,
   IngestWebhookEventResult,
@@ -14,11 +14,12 @@ import {
 } from './types.ts';
 import { ingestEventMessages } from './message.ts';
 
-export const ingestEventCellDeclaration = declareCommandCell<
+export const ingestEventCellDeclaration = defineOperation<
   IngestWebhookEventCommand,
   IngestWebhookEventResult,
   IngestEventExpectedFailure
 >({
+  kind: 'command',
   id: ingestEventOperationId,
   authentication: 'none',
   contract: ingestEventContract,
@@ -35,4 +36,4 @@ export const ingestEventCellDeclaration = declareCommandCell<
 });
 
 export const makeIngestEventCell = (deps: IngestEventDependencies) =>
-  bindCell(ingestEventCellDeclaration, makeExecuteIngestEvent(deps));
+  defineOperation(ingestEventCellDeclaration, makeExecuteIngestEvent(deps));

@@ -1,4 +1,4 @@
-import { bindCell, declareQueryCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import type {
   DeadWebhookEventsResult,
   ListDeadWebhookEventsQuery,
@@ -14,11 +14,12 @@ import {
   type ListDeadEventsExpectedFailure,
 } from './types.ts';
 
-export const listDeadEventsCellDeclaration = declareQueryCell<
+export const listDeadEventsCellDeclaration = defineOperation<
   ListDeadWebhookEventsQuery,
   DeadWebhookEventsResult,
   ListDeadEventsExpectedFailure
 >({
+  kind: 'query',
   id: listDeadEventsOperationId,
   authentication: 'required',
   contract: listDeadEventsContract,
@@ -32,4 +33,7 @@ export const listDeadEventsCellDeclaration = declareQueryCell<
 });
 
 export const makeListDeadEventsCell = (deps: ListDeadEventsDependencies) =>
-  bindCell(listDeadEventsCellDeclaration, makeExecuteListDeadEvents(deps));
+  defineOperation(
+    listDeadEventsCellDeclaration,
+    makeExecuteListDeadEvents(deps),
+  );

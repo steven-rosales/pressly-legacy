@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { manageResourcesContract } from './contract.ts';
 import {
   makeExecuteManageResources,
@@ -11,11 +11,12 @@ import type {
 } from './types.ts';
 import { manageResourcesOperationId } from './types.ts';
 
-export const manageResourcesCellDeclaration = declareCommandCell<
+export const manageResourcesCellDeclaration = defineOperation<
   ManageResourcesCommand,
   ManageResourcesResult,
   ManageResourcesExpectedFailure
 >({
+  kind: 'command',
   id: manageResourcesOperationId,
   authentication: 'none',
   contract: manageResourcesContract,
@@ -33,4 +34,8 @@ export const manageResourcesCellDeclaration = declareCommandCell<
 
 export const makeManageResourcesCell = <StoredWorkEvent>(
   deps: ManageResourcesDependencies<StoredWorkEvent>,
-) => bindCell(manageResourcesCellDeclaration, makeExecuteManageResources(deps));
+) =>
+  defineOperation(
+    manageResourcesCellDeclaration,
+    makeExecuteManageResources(deps),
+  );

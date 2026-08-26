@@ -59,7 +59,7 @@ the operation.
 `experiences/control` and `experiences/processor` own cross-system user
 workflows and capability projections.
 
-`hosts/http`, generated catalogs, and `generated/runtime` compose the
+`hosts/http`, topology catalogs, and topology runtime composition compose the
 protocol pipeline.
 
 They wire authentication, request context, authorization, and cell execution
@@ -498,7 +498,7 @@ When adding a new protected operation:
 2. Decide what `Resource` is being touched.
 3. Decide the resource `Scope`.
 4. Add policy rules under `systems/access/src/model/authorization`.
-5. Wire the generated boundary profile and API provider to authenticate, build
+5. Wire the topology boundary profile and API provider to authenticate, build
    the resource, and authorize.
 6. Keep the business use case actor-neutral.
 7. Add tests for allow, deny, stale session, missing assignment, and wrong scope.

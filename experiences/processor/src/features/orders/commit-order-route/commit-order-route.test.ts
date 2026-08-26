@@ -55,7 +55,7 @@ const result: CommitProductionOrderRouteResult = {
 }
 
 describe("Processor commit-order-route experience", () => {
-  it("preserves the canonical command and result through generated route metadata", async () => {
+  it("preserves the canonical command and result through declared route metadata", async () => {
     const request = vi
       .fn<CommitOrderRouteRequestTransport>()
       .mockResolvedValue(result)

@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import {
   resultOperation,
   type OperationFailure,
@@ -11,11 +11,12 @@ import type {
 } from './transition-workforce-membership.usecase.ts';
 import { transitionWorkforceMembershipContract } from './contract.ts';
 
-export const transitionWorkforceMembershipCellDeclaration = declareCommandCell<
+export const transitionWorkforceMembershipCellDeclaration = defineOperation<
   TransitionWorkforceMembershipOperationCommand,
   OperationOutput<TransitionWorkforceMembership>,
   OperationFailure<TransitionWorkforceMembership>
 >({
+  kind: 'command',
   id: 'access.transition-workforce-membership.v1',
   authentication: 'required',
   contract: transitionWorkforceMembershipContract,
@@ -35,7 +36,7 @@ export const transitionWorkforceMembershipCellDeclaration = declareCommandCell<
 export const makeTransitionWorkforceMembershipCell = (
   operation: TransitionWorkforceMembershipOperation,
 ) =>
-  bindCell(
+  defineOperation(
     transitionWorkforceMembershipCellDeclaration,
     resultOperation(operation),
   );

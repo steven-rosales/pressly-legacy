@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import type { ReconcileSourceLocationBindingsResult } from './model.ts';
 import { reconcileSourceLocationBindingsContract } from './contract.ts';
 import {
@@ -11,27 +11,27 @@ import {
   type ReconcileSourceLocationBindingsExpectedFailure,
 } from './types.ts';
 
-export const reconcileSourceLocationBindingsCellDeclaration =
-  declareCommandCell<
-    ReconcileSourceLocationBindingsCommand,
-    ReconcileSourceLocationBindingsResult,
-    ReconcileSourceLocationBindingsExpectedFailure
-  >({
-    id: reconcileSourceLocationBindingsOperationId,
-    authentication: 'none',
-    contract: reconcileSourceLocationBindingsContract,
-    consistency: { transaction: 'required', concurrency: 'none' },
-    idempotency: { required: false },
-    surfaces: [],
-    emits: [],
-    consumes: [],
-    observability: { operation: 'ingress.reconcile_source_location_bindings' },
-  });
+export const reconcileSourceLocationBindingsCellDeclaration = defineOperation<
+  ReconcileSourceLocationBindingsCommand,
+  ReconcileSourceLocationBindingsResult,
+  ReconcileSourceLocationBindingsExpectedFailure
+>({
+  kind: 'command',
+  id: reconcileSourceLocationBindingsOperationId,
+  authentication: 'none',
+  contract: reconcileSourceLocationBindingsContract,
+  consistency: { transaction: 'required', concurrency: 'none' },
+  idempotency: { required: false },
+  surfaces: [],
+  emits: [],
+  consumes: [],
+  observability: { operation: 'ingress.reconcile_source_location_bindings' },
+});
 
 export const makeReconcileSourceLocationBindingsCell = (
   deps: ReconcileSourceLocationBindingsDependencies,
 ) =>
-  bindCell(
+  defineOperation(
     reconcileSourceLocationBindingsCellDeclaration,
     makeExecuteReconcileSourceLocationBindings(deps),
   );

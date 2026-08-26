@@ -30,7 +30,7 @@ const result: ChangeProductionAdmissionResult = {
 }
 
 describe("Processor change-admission experience", () => {
-  it("maps the unchanged command body through generated metadata", async () => {
+  it("maps the unchanged command body through declared metadata", async () => {
     const request = vi
       .fn<ChangeAdmissionRequestTransport>()
       .mockResolvedValue(result)

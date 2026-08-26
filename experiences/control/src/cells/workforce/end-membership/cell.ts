@@ -1,4 +1,4 @@
-import { declareCommandCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 import type { ControlWorkforceFailure } from "../../../management/model/failure.ts"
 import type {
   MembershipTransitionInput,
@@ -7,11 +7,12 @@ import type {
 import { endControlMembershipContract } from "./contract.ts"
 import { endSurface } from "./http.ts"
 
-export const endControlMembershipCellDeclaration = declareCommandCell<
+export const endControlMembershipCellDeclaration = defineOperation<
   MembershipTransitionInput,
   MembershipTransitionOutput,
   ControlWorkforceFailure
 >({
+  kind: "command",
   id: "control.end-membership.v1",
   contract: endControlMembershipContract,
   authorization: { capability: "team:write", timing: "before-input" },

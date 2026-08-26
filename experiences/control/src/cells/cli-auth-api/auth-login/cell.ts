@@ -5,13 +5,14 @@ import type {
 import type { CliLoginResult } from "../../../cli/model.ts"
 import { controlCliAuthApiLoginContract } from "./contract.ts"
 import { controlCliAuthApiLoginSurface } from "./http.ts"
-import { declareCommandCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
-export const controlCliAuthApiLoginCellDeclaration = declareCommandCell<
+export const controlCliAuthApiLoginCellDeclaration = defineOperation<
   CliAuthApiLoginInput,
   CliLoginResult,
   CliAuthApiLoginFailure
 >({
+  kind: "command",
   id: "control.cli-auth-api-login.v1",
   authentication: "none",
   contract: controlCliAuthApiLoginContract,

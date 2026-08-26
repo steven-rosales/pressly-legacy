@@ -49,7 +49,7 @@ export type SchedulingInventoryEntry = Readonly<{
   processorOwnership: Readonly<{
     httpOwner: 'none' | 'production-system';
     consumer: 'processor' | 'production-composition';
-    client: 'generated' | 'handwritten' | 'none';
+    client: 'handwritten' | 'handwritten' | 'none';
     consumerAnchor: SchedulingInventorySourceAnchor | null;
   }>;
   complexity: Readonly<{
@@ -89,7 +89,7 @@ const processorHttp = (adapterMember: string) =>
   ({
     httpOwner: 'production-system',
     consumer: 'processor',
-    client: 'generated',
+    client: 'handwritten',
     consumerAnchor: {
       file: 'topology/runtime/browser/processor.ts',
       contains: [`const ${adapterMember} =`, `${adapterMember},`],
@@ -143,7 +143,7 @@ export const productionSchedulingInventory = Object.freeze([
     processorOwnership: {
       httpOwner: 'production-system',
       consumer: 'processor',
-      client: 'generated',
+      client: 'handwritten',
       consumerAnchor: {
         file: 'topology/runtime/browser/processor.ts',
         contains: [
@@ -229,7 +229,7 @@ export const productionSchedulingInventory = Object.freeze([
     processorOwnership: {
       httpOwner: 'production-system',
       consumer: 'processor',
-      client: 'generated',
+      client: 'handwritten',
       consumerAnchor: {
         file: 'topology/runtime/browser/processor.ts',
         contains: [
@@ -331,7 +331,7 @@ export const productionSchedulingInventory = Object.freeze([
     processorOwnership: {
       httpOwner: 'production-system',
       consumer: 'processor',
-      client: 'generated',
+      client: 'handwritten',
       consumerAnchor: {
         file: 'topology/runtime/browser/processor.ts',
         contains: [
@@ -437,7 +437,7 @@ export const productionSchedulingInventory = Object.freeze([
     processorOwnership: {
       httpOwner: 'production-system',
       consumer: 'processor',
-      client: 'generated',
+      client: 'handwritten',
       consumerAnchor: {
         file: 'topology/runtime/browser/processor.ts',
         contains: [
@@ -545,7 +545,7 @@ export const productionSchedulingInventory = Object.freeze([
     processorOwnership: {
       httpOwner: 'production-system',
       consumer: 'processor',
-      client: 'generated',
+      client: 'handwritten',
       consumerAnchor: {
         file: 'topology/runtime/browser/processor.ts',
         contains: [
@@ -631,7 +631,7 @@ export const productionSchedulingInventory = Object.freeze([
     processorOwnership: {
       httpOwner: 'production-system',
       consumer: 'processor',
-      client: 'generated',
+      client: 'handwritten',
       consumerAnchor: {
         file: 'topology/runtime/browser/processor.ts',
         contains: [
@@ -832,7 +832,7 @@ export const productionSchedulingInventory = Object.freeze([
     processorOwnership: {
       httpOwner: 'production-system',
       consumer: 'processor',
-      client: 'generated',
+      client: 'handwritten',
       consumerAnchor: {
         file: 'topology/runtime/browser/processor.ts',
         contains: [
@@ -1038,7 +1038,7 @@ export const productionSchedulingInventory = Object.freeze([
     processorOwnership: {
       httpOwner: 'production-system',
       consumer: 'processor',
-      client: 'generated',
+      client: 'handwritten',
       consumerAnchor: {
         file: 'topology/runtime/browser/processor.ts',
         contains: [
@@ -1140,7 +1140,7 @@ export const productionSchedulingInventory = Object.freeze([
     processorOwnership: {
       httpOwner: 'production-system',
       consumer: 'processor',
-      client: 'generated',
+      client: 'handwritten',
       consumerAnchor: {
         file: 'topology/runtime/browser/processor.ts',
         contains: [
@@ -1241,7 +1241,7 @@ export const productionSchedulingInventory = Object.freeze([
     processorOwnership: {
       httpOwner: 'production-system',
       consumer: 'processor',
-      client: 'generated',
+      client: 'handwritten',
       consumerAnchor: {
         file: 'topology/runtime/browser/processor.ts',
         contains: [

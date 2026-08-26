@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { reconcileBatchProgressContract } from './contract.ts';
 import { reconcileBatchProgressOperationId } from './decide.ts';
 import {
@@ -12,11 +12,12 @@ import type {
   ReconcileBatchProgressResult,
 } from './types.ts';
 
-export const reconcileBatchProgressCellDeclaration = declareCommandCell<
+export const reconcileBatchProgressCellDeclaration = defineOperation<
   ReconcileBatchProgressCommand,
   ReconcileBatchProgressResult,
   ReconcileBatchProgressExpectedFailure
 >({
+  kind: 'command',
   id: reconcileBatchProgressOperationId,
   contract: reconcileBatchProgressContract,
   authorization: {
@@ -47,7 +48,7 @@ export const reconcileBatchProgressCellDeclaration = declareCommandCell<
 export const makeReconcileBatchProgressCell = <Stored>(
   deps: ReconcileBatchProgressDependencies<Stored>,
 ) =>
-  bindCell(
+  defineOperation(
     reconcileBatchProgressCellDeclaration,
     makeExecuteReconcileBatchProgress(deps),
   );

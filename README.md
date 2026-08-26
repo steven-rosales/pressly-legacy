@@ -112,10 +112,9 @@ pnpm install
 pnpm docker:up
 ```
 
-VS Code resolves `@pressly/*` workspace packages from their referenced source
-projects, so a package build is not required for editor type resolution. After
-changing workspace package dependencies, regenerate those references with
-`pnpm typescript:references:write`.
+The workspace uses ordinary TypeScript project references for builds. The
+checked architecture graph is maintained by dependency-cruiser and ESLint;
+there is no generated architecture layer to refresh.
 
 Then open:
 
@@ -134,9 +133,8 @@ Stop the stack with `pnpm docker:down`.
 - `hosts` — generic HTTP, jobs, CLI, and browser process boundaries
 - `platform` — business-neutral auth, cell, codec, configuration, error, HTTP,
   job, logging, observability, PostgreSQL, testing, and time mechanisms
-- `topology` — the hand-authored deployment selection and owner assembly
-- `generated` — deterministic catalogs, browser clients, architecture maps,
-  and executable runtime bindings
+- `topology` — the hand-authored deployment selection, owner assembly, runtime
+  catalogs, browser descriptors, and observability catalog
 - `verification` — cross-owner conformance, flow, and migration proof
 - `deploy` — container and infrastructure packaging
 - `platform/postgres/migrations` — the immutable migration ledger

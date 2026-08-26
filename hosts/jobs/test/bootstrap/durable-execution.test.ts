@@ -121,8 +121,8 @@ const harness = (
   };
 };
 
-describe('Worker generated-job execution', () => {
-  it('runs generated webhook first and order_outbox second in one pass', async () => {
+describe('Worker topology-job execution', () => {
+  it('runs webhook first and order_outbox second in one pass', async () => {
     const run = harness();
     await run.execution.run({
       jobs: run.jobs,
@@ -166,7 +166,7 @@ describe('Worker generated-job execution', () => {
       ],
     },
   ])(
-    'rejects a generated catalog containing $count registrations',
+    'rejects a topology catalog containing $count registrations',
     async ({ jobs }) => {
       const run = harness({ jobs });
       await expect(

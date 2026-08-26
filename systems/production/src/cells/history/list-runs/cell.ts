@@ -1,5 +1,5 @@
 import type { ListProductionHistoryRunsResult } from '../../../read-models/production-history/contract.ts';
-import { bindCell, declareQueryCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { listHistoryRunsContract } from './contract.ts';
 import {
   makeExecuteListHistoryRuns,
@@ -12,11 +12,12 @@ import {
   type ListHistoryRunsInput,
 } from './types.ts';
 
-export const listHistoryRunsCellDeclaration = declareQueryCell<
+export const listHistoryRunsCellDeclaration = defineOperation<
   ListHistoryRunsInput,
   ListProductionHistoryRunsResult,
   ListHistoryRunsExpectedFailure
 >({
+  kind: 'query',
   id: listHistoryRunsOperationId,
   contract: listHistoryRunsContract,
   authorization: {
@@ -32,7 +33,7 @@ export const listHistoryRunsCellDeclaration = declareQueryCell<
 export const makeListHistoryRunsCell = (
   dependencies: ListHistoryRunsDependencies,
 ) =>
-  bindCell(
+  defineOperation(
     listHistoryRunsCellDeclaration,
     makeExecuteListHistoryRuns(dependencies),
   );

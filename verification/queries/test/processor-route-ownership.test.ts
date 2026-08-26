@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { processorBrowserOperations } from '@pressly/topology/browser-operations';
 import {
   processorProjectionRoutes,
   productionQueryConformanceCatalog,
@@ -104,12 +105,17 @@ describe('Processor query route ownership after activation', () => {
     }
   });
 
-  it('publishes the same seven Processor operations through the generated client', async () => {
-    const client = normalized(await read('generated/clients/processor.ts'));
+  it('publishes the same seven Processor operations through topology descriptors', () => {
     for (const { processorOperationId, route } of processorProjectionRoutes) {
-      expect(client).toContain(normalized(`'${processorOperationId}'`));
-      expect(client).toContain(normalized(`'${route.method}'`));
-      expect(client).toContain(normalized(`'${route.path}'`));
+      expect(Object.keys(processorBrowserOperations)).toContain(
+        processorOperationId,
+      );
+      const descriptor = Object.values(processorBrowserOperations).find(
+        (operation) => operation.operationId === processorOperationId,
+      );
+      expect(descriptor).toBeDefined();
+      expect(JSON.stringify(descriptor)).toContain(route.method);
+      expect(JSON.stringify(descriptor)).toContain(route.path);
     }
   });
 

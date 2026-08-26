@@ -9,7 +9,7 @@ import {
   establishControlSession,
 } from "../../../auth/model/session.ts"
 import { controlLoginCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 export type ControlLoginDependencies = ControlSessionDependencies &
   Readonly<{
@@ -25,7 +25,7 @@ const loginAccessInput = (input: LoginInput): AccessInput<"login"> => ({
 })
 
 export const makeControlLoginCell = (dependencies: ControlLoginDependencies) =>
-  bindCell(controlLoginCellDeclaration, async (input) => {
+  defineOperation(controlLoginCellDeclaration, async (input) => {
     const authenticated = await dependencies.login.execute(
       loginAccessInput(input),
     )

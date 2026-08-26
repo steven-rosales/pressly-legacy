@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import type {
   WebhookEventClaim,
   WebhookEventCompletion,
@@ -13,11 +13,12 @@ import {
   type CompleteEventExpectedFailure,
 } from './types.ts';
 
-export const completeEventCellDeclaration = declareCommandCell<
+export const completeEventCellDeclaration = defineOperation<
   WebhookEventClaim,
   WebhookEventCompletion,
   CompleteEventExpectedFailure
 >({
+  kind: 'command',
   id: completeEventOperationId,
   authentication: 'none',
   contract: completeEventContract,
@@ -35,4 +36,4 @@ export const completeEventCellDeclaration = declareCommandCell<
 });
 
 export const makeCompleteEventCell = (deps: CompleteEventDependencies) =>
-  bindCell(completeEventCellDeclaration, makeExecuteCompleteEvent(deps));
+  defineOperation(completeEventCellDeclaration, makeExecuteCompleteEvent(deps));

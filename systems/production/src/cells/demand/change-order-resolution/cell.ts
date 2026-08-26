@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { changeOrderResolutionContract } from './contract.ts';
 import { changeOrderResolutionOperationId } from './decide.ts';
 import {
@@ -12,11 +12,12 @@ import type {
   ChangeOrderResolutionResult,
 } from './types.ts';
 
-export const changeOrderResolutionCellDeclaration = declareCommandCell<
+export const changeOrderResolutionCellDeclaration = defineOperation<
   ChangeOrderResolutionCommand,
   ChangeOrderResolutionResult,
   ChangeOrderResolutionExpectedFailure
 >({
+  kind: 'command',
   id: changeOrderResolutionOperationId,
   contract: changeOrderResolutionContract,
   authorization: {
@@ -39,7 +40,7 @@ export const changeOrderResolutionCellDeclaration = declareCommandCell<
 export const makeChangeOrderResolutionCell = <StoredWorkEvent>(
   deps: ChangeOrderResolutionDependencies<StoredWorkEvent>,
 ) =>
-  bindCell(
+  defineOperation(
     changeOrderResolutionCellDeclaration,
     makeExecuteChangeOrderResolution(deps),
   );

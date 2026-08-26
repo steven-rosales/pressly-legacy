@@ -19,7 +19,7 @@ import {
   productionSubscribeChangesV1,
   productionUnfreezeBatchMembershipV1,
   productionUpdateShiftV1,
-} from '@pressly/generated/clients/processor';
+} from '@pressly/topology/browser-operations';
 import {
   testConfig,
   testSchedule,
@@ -33,8 +33,8 @@ const browserMechanisms = {
   now: () => new Date('2026-08-23T16:00:00.000Z'),
 } as const;
 
-describe('Processor generated production composition', () => {
-  it('injects generated accept metadata while browser fetch retains the idempotent effect', async () => {
+describe('Processor topology production composition', () => {
+  it('injects topology accept metadata while browser fetch retains the idempotent effect', async () => {
     const accepted = {
       scheduleRunId: '41000000-0000-4000-8000-000000000001',
       productionShiftId: '41000000-0000-4000-8000-000000000002',
@@ -83,7 +83,7 @@ describe('Processor generated production composition', () => {
     );
   });
 
-  it('injects generated commit-backlog metadata while browser fetch keeps the idempotent effect', async () => {
+  it('injects topology commit-backlog metadata while browser fetch keeps the idempotent effect', async () => {
     const result = {
       locationId: 'pressly one/north',
       bulkOperationId: '32000000-0000-4000-8000-000000000001',
@@ -142,7 +142,7 @@ describe('Processor generated production composition', () => {
     );
   });
 
-  it('injects generated commit-route metadata while browser fetch keeps the proposal-bound idempotent effect', async () => {
+  it('injects topology commit-route metadata while browser fetch keeps the proposal-bound idempotent effect', async () => {
     const proposal = {
       kind: 'queued_move' as const,
       productionRunId: '41000000-0000-4000-8000-000000000011',
@@ -223,7 +223,7 @@ describe('Processor generated production composition', () => {
     );
   });
 
-  it('injects generated publish-config metadata while browser fetch owns the effect', async () => {
+  it('injects topology publish-config metadata while browser fetch owns the effect', async () => {
     const fetch = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ ok: true, data: testConfig }), {
         status: 201,
@@ -268,7 +268,7 @@ describe('Processor generated production composition', () => {
     );
   });
 
-  it('injects generated load-schedule metadata and canonical response decoding', async () => {
+  it('injects topology load-schedule metadata and canonical response decoding', async () => {
     const fetch = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ ok: true, data: testSchedule }), {
         status: 200,
@@ -293,7 +293,7 @@ describe('Processor generated production composition', () => {
     );
   });
 
-  it('injects generated update-shift metadata and preserves the version-bound idempotent body', async () => {
+  it('injects topology update-shift metadata and preserves the version-bound idempotent body', async () => {
     const currentShift = testWorkspace.currentShift!;
     const result = {
       productionShift: {
@@ -347,7 +347,7 @@ describe('Processor generated production composition', () => {
     );
   });
 
-  it('injects generated read and route-preview metadata with browser query semantics', async () => {
+  it('injects topology read and route-preview metadata with browser query semantics', async () => {
     const asOf = '2026-08-21T14:00:00.000Z';
     const runId = '11111111-1111-4111-8111-111111111111';
     const orderId = '22222222-2222-4222-8222-222222222222';
@@ -492,7 +492,7 @@ describe('Processor generated production composition', () => {
     );
   });
 
-  it('injects generated production transports into browser adapters', async () => {
+  it('injects topology production transports into browser adapters', async () => {
     const runId = '11111111-1111-4111-8111-111111111111';
     const batchId = '22222222-2222-4222-8222-222222222222';
     const stageId = '33333333-3333-4333-8333-333333333333';

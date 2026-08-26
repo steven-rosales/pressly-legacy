@@ -5,18 +5,19 @@ import type {
 import type { ControlCustomerFailure } from "../../../management/model/failure.ts"
 import { listControlCustomersContract } from "./contract.ts"
 import { listSurface } from "./http.ts"
-import { declareQueryCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 export const readAuthorization = {
   capability: "customers:read",
   timing: "before-input",
 } as const
 
-export const listControlCustomersCellDeclaration = declareQueryCell<
+export const listControlCustomersCellDeclaration = defineOperation<
   ListControlCustomersInput,
   CustomerList,
   ControlCustomerFailure
 >({
+  kind: "query",
   id: "control.list-customers.v1",
   contract: listControlCustomersContract,
   authorization: readAuthorization,

@@ -5,13 +5,14 @@ import type {
 } from "../../../server/authentication/model.ts"
 import { processorLoginContract } from "./contract.ts"
 import { loginSurface } from "./http.ts"
-import { declareCommandCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
-export const processorLoginCellDeclaration = declareCommandCell<
+export const processorLoginCellDeclaration = defineOperation<
   ProcessorLoginInput,
   ProcessorLoginOutput,
   ProcessorAuthFailure
 >({
+  kind: "command",
   id: "processor.auth-login.v1",
   authentication: "none",
   contract: processorLoginContract,

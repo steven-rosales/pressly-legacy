@@ -8,7 +8,7 @@ import * as result from '@pressly/cells/result';
 import { uuidIdSource } from '@pressly/cells/id-source/node';
 import { systemClock } from '@pressly/time';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { makeCliCatalogFromOwners } from '@pressly/generated/cli-catalog';
+import { makeCliCatalogFromOwners } from '@pressly/topology/cli';
 import {
   runCliRuntime as runHostCliRuntime,
   type CliIo,

@@ -6,7 +6,7 @@ import type {
 } from "../../../cli/model.ts"
 import { readRequiredSession } from "../../../cli/model.ts"
 import { adminCliAuthMfaRecoveryCodesCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 const withSession = async <Output>(
   store: AdminCliSessionStore,
@@ -28,7 +28,7 @@ const withSession = async <Output>(
 export const makeAdminCliAuthMfaRecoveryCodesCell = (
   dependencies: AdminCliAuthDependencies,
 ) =>
-  bindCell(adminCliAuthMfaRecoveryCodesCellDeclaration, (input) => {
+  defineOperation(adminCliAuthMfaRecoveryCodesCellDeclaration, (input) => {
     void input
     return withSession(dependencies.session, (session) =>
       dependencies.api.regenerateMfaRecoveryCodes(session.accessToken),

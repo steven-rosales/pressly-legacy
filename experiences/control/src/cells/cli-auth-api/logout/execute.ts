@@ -1,7 +1,7 @@
 import type { AccessExecute, AccessInput } from "../../../auth/model/access.ts"
 import type { CliAuthApiTokenInput } from "../../../auth/model/cli-auth-api.ts"
 import { controlCliAuthApiLogoutCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 const accessInput = (
   input: CliAuthApiTokenInput,
@@ -13,6 +13,6 @@ const accessInput = (
 export const makeControlCliAuthApiLogoutCell = (
   revokeSession: AccessExecute<"revokeSession">,
 ) =>
-  bindCell(controlCliAuthApiLogoutCellDeclaration, (input) =>
+  defineOperation(controlCliAuthApiLogoutCellDeclaration, (input) =>
     revokeSession.execute(accessInput(input)),
   )

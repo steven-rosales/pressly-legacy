@@ -1,4 +1,4 @@
-import { bindCell, declareQueryCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import {
   successOperation,
   type OperationFailure,
@@ -8,11 +8,12 @@ import {
 import { listEffectiveAccessGrantsContract } from './contract.ts';
 import type { ListEffectiveAccessGrants } from './list-effective-access-grants.usecase.ts';
 
-export const listEffectiveAccessGrantsCellDeclaration = declareQueryCell<
+export const listEffectiveAccessGrantsCellDeclaration = defineOperation<
   OperationInput<ListEffectiveAccessGrants>,
   OperationOutput<ListEffectiveAccessGrants>,
   OperationFailure<ListEffectiveAccessGrants>
 >({
+  kind: 'query',
   id: 'access.list-effective-access-grants.v1',
   authentication: 'required',
   contract: listEffectiveAccessGrantsContract,
@@ -24,7 +25,7 @@ export const listEffectiveAccessGrantsCellDeclaration = declareQueryCell<
 export const makeListEffectiveAccessGrantsCell = (
   operation: ListEffectiveAccessGrants,
 ) =>
-  bindCell(
+  defineOperation(
     listEffectiveAccessGrantsCellDeclaration,
     successOperation(operation),
   );

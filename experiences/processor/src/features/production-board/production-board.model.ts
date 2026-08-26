@@ -58,6 +58,7 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
     productionRunId,
     refreshBoard: refreshBoardFromWorkspace,
   } = input
+
   const [board, setBoard] = useState<ProcessorProductionBoard | null>(
     input.initialBoard ?? null
   )
@@ -83,6 +84,7 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
   const [machineSelections, setMachineSelections] = useState<
     Record<string, readonly string[]>
   >({})
+
   const advanceStage = useMemo(
     () =>
       makeAdvanceStageWorkflow({
@@ -123,36 +125,45 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
       }),
     [input.idempotency, input.production]
   )
+
   const previousInitialBoard = useRef(input.initialBoard)
   const acceptBoard = useCallback((next: ProcessorProductionBoard) => {
     setBoard(next)
     setEarlyCompletion((current) => {
       if (current === null) return null
+
       const currentStage = next.batches
         .flatMap((batch) => batch.stages)
         .find((stage) => stage.id === current.stage.id)
+
       return currentStage !== undefined &&
         currentStage.status === "started" &&
         currentStage.version === current.result.stageVersion
         ? current
         : null
     })
+
     setEarlyStart((current) => {
       if (current === null) return null
+
       const currentStage = next.batches
         .flatMap((batch) => batch.stages)
         .find((stage) => stage.id === current.stage.id)
+
       return currentStage !== undefined &&
         currentStage.status === "planned" &&
         currentStage.version === current.result.stageVersion
         ? current
         : null
     })
+
     setFloorProgressConfirmation((current) => {
       if (current === null) return null
+
       const currentBatch = next.batches.find(
         (batch) => batch.id === current.draft.productionBatchId
       )
+
       return currentBatch !== undefined &&
         next.productionRun.queueVersion === current.result.queueVersion &&
         currentBatch.version === current.result.batchVersion &&
@@ -183,7 +194,9 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
           ? await production.loadBoard(locationId, productionRunId)
           : await refreshBoardFromWorkspace()
       if (next !== null) acceptBoard(next)
+
       setError(null)
+
       return next
     } catch (cause) {
       setError(presentProductionBoardError(cause, "load", t))
@@ -215,6 +228,7 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
   const act = async (stage: StageRun, transition: "start" | "complete") => {
     setBusyId(stage.id)
     setError(null)
+
     try {
       const result = await advanceStage({
         kind: "attempt",
@@ -230,8 +244,10 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
             stage: stageName(stage.stage, t),
           })
         )
+
         return
       }
+
       if (isCompletionConfirmation(result)) {
         setEarlyCompletion({ stage, result })
         setAnnouncement(
@@ -239,9 +255,12 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
             stage: stageName(stage.stage, t),
           })
         )
+
         return
       }
+
       await refresh()
+
       setAnnouncement(
         t(
           transition === "start"
@@ -260,7 +279,9 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
 
   const confirmEarlyStart = async () => {
     if (earlyStart === null) return
+
     const { stage, result: prompt } = earlyStart
+
     setBusyId(stage.id)
     setError(null)
     try {
@@ -272,12 +293,16 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
         expectedVersion: prompt.stageVersion,
         confirmation: prompt.confirmation,
       })
+
       if (isStartConfirmation(result)) {
         setEarlyStart({ stage, result })
         return
       }
+
       setEarlyStart(null)
+
       await refresh()
+
       setAnnouncement(
         t("production.stageStarted", { stage: stageName(stage.stage, t) })
       )
@@ -292,9 +317,12 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
 
   const confirmEarlyCompletion = async () => {
     if (earlyCompletion === null) return
+
     const { stage, result: prompt } = earlyCompletion
+
     setBusyId(stage.id)
     setError(null)
+
     try {
       const result = await advanceStage({
         kind: "confirmation",
@@ -304,12 +332,16 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
         expectedVersion: prompt.stageVersion,
         confirmation: prompt.confirmation,
       })
+
       if (isCompletionConfirmation(result)) {
         setEarlyCompletion({ stage, result })
         return
       }
+
       setEarlyCompletion(null)
+
       await refresh()
+
       setAnnouncement(
         t("production.stageCompleted", { stage: stageName(stage.stage, t) })
       )
@@ -339,6 +371,7 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
 
   const assignMachines = async (stage: StageRun) => {
     const machineIds = [...selectedMachineIds(stage)].sort()
+
     if (machineIds.length === 0) {
       setError(t("production.selectMachine"))
       return false
@@ -346,6 +379,7 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
 
     setBusyId(stage.id)
     setError(null)
+
     try {
       await assignStageMachines({
         locationId: input.locationId,
@@ -353,12 +387,15 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
         machineIds,
         expectedVersion: stage.version,
       })
+
       await refresh()
+
       setAnnouncement(
         t("production.machinesAssigned", {
           stage: stageName(stage.stage, t),
         })
       )
+
       return true
     } catch (cause) {
       await refresh()
@@ -374,8 +411,10 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
     action: "freeze" | "unfreeze"
   ) => {
     if (board === null) return
+
     setBusyId(batch.id)
     setError(null)
+
     try {
       const command = {
         locationId: input.locationId,
@@ -384,9 +423,12 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
         expectedQueueVersion: board.productionRun.queueVersion,
         expectedBatchVersion: batch.version,
       }
+
       if (action === "freeze") await freezeBatch(command)
       else await unfreezeBatch(command)
+
       await refresh()
+
       setAnnouncement(
         t(
           action === "freeze"
@@ -412,7 +454,9 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
   ) => {
     setFloorProgressConfirmation(null)
     setFloorProgressOpen(false)
+
     await refresh()
+
     setAnnouncement(
       t("production.floorRecorded", {
         batch: batchSequence + 1,
@@ -428,6 +472,7 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
     const batch = board.batches.find(
       (candidate) => candidate.id === draft.productionBatchId
     )
+
     if (batch === undefined) {
       setFloorProgressError(t("production.batchMissing"))
       return
@@ -437,6 +482,7 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
       stageRunId: stage.id,
       version: stage.version,
     }))
+
     const command = {
       locationId: input.locationId,
       productionRunId: board.productionRun.id,
@@ -453,6 +499,7 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
     setBusyId(batch.id)
     setFloorProgressError(null)
     setFloorProgressConfirmation(null)
+
     try {
       const result = await reconcileBatchProgress({
         kind: "preview",
@@ -463,11 +510,14 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
         setAnnouncement(
           t("production.floorReady", { batch: batch.sequence + 1 })
         )
+
         return
       }
+
       await finishFloorProgress(batch.sequence, result)
     } catch (cause) {
       await refresh()
+
       setFloorProgressError(
         presentProductionBoardError(cause, "floor_preview", t)
       )
@@ -482,11 +532,13 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
     const batch = board.batches.find(
       (candidate) => candidate.id === draft.productionBatchId
     )
+
     if (batch === undefined) {
       setFloorProgressConfirmation(null)
       setFloorProgressError(t("production.batchMissing"))
       return
     }
+
     const command = {
       locationId: input.locationId,
       productionRunId: prompt.productionRunId,
@@ -503,19 +555,25 @@ export function useProductionBoardModel(input: ProductionBoardModelInput) {
 
     setBusyId(batch.id)
     setFloorProgressError(null)
+
     try {
       const result = await reconcileBatchProgress({
         kind: "confirmation",
         ...command,
       })
+
       if (result.status === "confirmation_required") {
         setFloorProgressConfirmation({ draft, result })
+
         return
       }
+
       await finishFloorProgress(batch.sequence, result)
     } catch (cause) {
       setFloorProgressConfirmation(null)
+
       await refresh()
+
       setFloorProgressError(
         presentProductionBoardError(cause, "floor_commit", t)
       )

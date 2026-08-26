@@ -7,7 +7,7 @@ import type { ProcessorSessionDependencies } from "../../../server/authenticatio
 import { processorAccessFailure } from "../../../server/authentication/model.ts"
 import { establishProcessorSession } from "../../../server/authentication/session.ts"
 import { processorCompleteMfaChallengeCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 const challengeAccessInput = (
   input: ProcessorChallengeInput
@@ -26,27 +26,36 @@ export type ProcessorChallengeDependencies = ProcessorSessionDependencies &
 export const makeProcessorCompleteMfaChallengeCell = (
   dependencies: ProcessorChallengeDependencies
 ) =>
-  bindCell(processorCompleteMfaChallengeCellDeclaration, async (input) => {
-    const completed = await dependencies.completeMfaChallenge.execute(
-      challengeAccessInput(input)
-    )
-    if (completed.kind === "failure")
-      return {
-        kind: "failure",
-        failure: processorAccessFailure(completed.failure, [], input.requestId),
-      }
-    const established = await establishProcessorSession(dependencies, {
-      accessToken: completed.value.accessToken,
-      expiresAt: completed.value.expiresAt,
-      ...(input.requestId === undefined ? {} : { requestId: input.requestId }),
-    })
-    return established.kind === "failure"
-      ? established
-      : {
-          kind: "success",
-          value: {
-            data: established.session,
-            setCookieHeaders: established.setCookieHeaders,
-          },
+  defineOperation(
+    processorCompleteMfaChallengeCellDeclaration,
+    async (input) => {
+      const completed = await dependencies.completeMfaChallenge.execute(
+        challengeAccessInput(input)
+      )
+      if (completed.kind === "failure")
+        return {
+          kind: "failure",
+          failure: processorAccessFailure(
+            completed.failure,
+            [],
+            input.requestId
+          ),
         }
-  })
+      const established = await establishProcessorSession(dependencies, {
+        accessToken: completed.value.accessToken,
+        expiresAt: completed.value.expiresAt,
+        ...(input.requestId === undefined
+          ? {}
+          : { requestId: input.requestId }),
+      })
+      return established.kind === "failure"
+        ? established
+        : {
+            kind: "success",
+            value: {
+              data: established.session,
+              setCookieHeaders: established.setCookieHeaders,
+            },
+          }
+    }
+  )

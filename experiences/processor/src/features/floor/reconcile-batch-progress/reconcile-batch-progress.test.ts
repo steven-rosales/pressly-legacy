@@ -77,7 +77,7 @@ const scope = {
 }
 
 describe("Processor reconcile-batch-progress experience", () => {
-  it("maps the typed command body through generated route metadata", async () => {
+  it("maps the typed command body through declared route metadata", async () => {
     const request = vi
       .fn<ReconcileBatchProgressRequestTransport>()
       .mockResolvedValue(result)

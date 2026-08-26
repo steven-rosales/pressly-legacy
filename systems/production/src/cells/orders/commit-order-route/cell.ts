@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { commitOrderRouteContract } from './contract.ts';
 import {
   makeExecuteCommitOrderRoute,
@@ -12,11 +12,12 @@ import {
   type CommitOrderRouteResult,
 } from './types.ts';
 
-export const commitOrderRouteCellDeclaration = declareCommandCell<
+export const commitOrderRouteCellDeclaration = defineOperation<
   CommitOrderRouteCommand,
   CommitOrderRouteResult,
   CommitOrderRouteExpectedFailure
 >({
+  kind: 'command',
   id: commitOrderRouteOperationId,
   contract: commitOrderRouteContract,
   authorization: {
@@ -40,7 +41,7 @@ export const commitOrderRouteCellDeclaration = declareCommandCell<
 export const makeCommitOrderRouteCell = <StoredWorkEvent>(
   dependencies: CommitOrderRouteDependencies<StoredWorkEvent>,
 ) =>
-  bindCell(
+  defineOperation(
     commitOrderRouteCellDeclaration,
     makeExecuteCommitOrderRoute(dependencies),
   );

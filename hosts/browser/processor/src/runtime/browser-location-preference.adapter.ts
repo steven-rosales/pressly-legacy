@@ -1,4 +1,4 @@
-import type { LocationPreferencePort } from '@pressly/generated-runtime/browser/processor';
+import type { LocationPreferencePort } from '@pressly/topology/browser';
 
 const preferenceKey = 'pressly.processor.location';
 

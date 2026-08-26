@@ -1,6 +1,6 @@
 import { pathToFileURL } from 'node:url';
 import { toolingError } from '@pressly/errors/tooling-error';
-import { httpRouteManifest } from '../../generated/dist/http-catalog.js';
+import { httpRouteManifest } from '../../topology/http.ts';
 import { runHttpRouteMountCensus } from './census.ts';
 
 const parseOrigin = (arguments_: readonly string[]): string => {

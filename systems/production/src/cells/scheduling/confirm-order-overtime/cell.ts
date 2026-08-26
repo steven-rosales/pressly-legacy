@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { confirmOrderOvertimeContract } from './contract.ts';
 import { confirmOrderOvertimeOperationId } from './decide.ts';
 import {
@@ -12,11 +12,12 @@ import type {
   ConfirmProductionOrderOvertimeResult,
 } from './types.ts';
 
-export const confirmOrderOvertimeCellDeclaration = declareCommandCell<
+export const confirmOrderOvertimeCellDeclaration = defineOperation<
   ConfirmProductionOrderOvertimeCommand,
   ConfirmProductionOrderOvertimeResult,
   ConfirmOrderOvertimeExpectedFailure
 >({
+  kind: 'command',
   id: confirmOrderOvertimeOperationId,
   contract: confirmOrderOvertimeContract,
   authorization: {
@@ -39,7 +40,7 @@ export const confirmOrderOvertimeCellDeclaration = declareCommandCell<
 export const makeConfirmOrderOvertimeCell = <StoredWorkEvent>(
   deps: ConfirmOrderOvertimeDependencies<StoredWorkEvent>,
 ) =>
-  bindCell(
+  defineOperation(
     confirmOrderOvertimeCellDeclaration,
     makeExecuteConfirmOrderOvertime(deps),
   );

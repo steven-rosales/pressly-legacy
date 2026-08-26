@@ -5,13 +5,14 @@ import type {
 } from "../../../server/authentication/model.ts"
 import { processorLogoutContract } from "./contract.ts"
 import { logoutSurface } from "./http.ts"
-import { declareCommandCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
-export const processorLogoutCellDeclaration = declareCommandCell<
+export const processorLogoutCellDeclaration = defineOperation<
   ProcessorCookieSessionInput,
   ProcessorLogoutOutput,
   ProcessorAuthFailure
 >({
+  kind: "command",
   id: "processor.logout.v1",
   authentication: "none",
   contract: processorLogoutContract,

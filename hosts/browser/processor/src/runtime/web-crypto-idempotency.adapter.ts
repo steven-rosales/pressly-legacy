@@ -1,6 +1,6 @@
 import { canonicalJson } from '@pressly/codec';
 import { invariantViolationError } from '@pressly/errors/factories';
-import type { IdempotencyPort } from '@pressly/generated-runtime/browser/processor';
+import type { IdempotencyPort } from '@pressly/topology/browser';
 
 const hex = (bytes: ArrayBuffer): string =>
   [...new Uint8Array(bytes)]

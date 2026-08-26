@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import type { CustomerCommandResult } from '../../../model/customer.ts';
 import { updateCustomerContract } from './contract.ts';
 import {
@@ -12,11 +12,12 @@ import {
   type UpdateCustomerExpectedFailure,
 } from './types.ts';
 
-export const updateCustomerCellDeclaration = declareCommandCell<
+export const updateCustomerCellDeclaration = defineOperation<
   UpdateCustomerCommand,
   CustomerCommandResult,
   UpdateCustomerExpectedFailure
 >({
+  kind: 'command',
   id: updateCustomerOperationId,
   authentication: 'none',
   contract: updateCustomerContract,
@@ -39,7 +40,7 @@ export const updateCustomerCellDeclaration = declareCommandCell<
 export const makeUpdateCustomerCell = (
   dependencies: UpdateCustomerDependencies,
 ) =>
-  bindCell(
+  defineOperation(
     updateCustomerCellDeclaration,
     makeExecuteUpdateCustomer(dependencies),
   );

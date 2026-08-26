@@ -15,7 +15,7 @@ import {
   resolveOperationalOrders,
 } from "../../../server/model/operational-order.ts"
 import { loadProcessorProductionHistoryRunCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 export type LoadProductionHistoryRun = ProductionQuery<
   LoadProcessorProductionHistoryRunInput,
@@ -56,12 +56,15 @@ export const makeLoadProcessorProductionHistoryRunCell = (dependencies: {
   loadRun: LoadProductionHistoryRun
   resolveOrderCanonical: ResolveOperationalOrderCanonical
 }) =>
-  bindCell(loadProcessorProductionHistoryRunCellDeclaration, async (input) => {
-    const run = await dependencies.loadRun(input)
-    return run.kind === "failure"
-      ? productionQueryFailureOutcome(run.failure)
-      : {
-          kind: "success",
-          value: await project(run.value, dependencies.resolveOrderCanonical),
-        }
-  })
+  defineOperation(
+    loadProcessorProductionHistoryRunCellDeclaration,
+    async (input) => {
+      const run = await dependencies.loadRun(input)
+      return run.kind === "failure"
+        ? productionQueryFailureOutcome(run.failure)
+        : {
+            kind: "success",
+            value: await project(run.value, dependencies.resolveOrderCanonical),
+          }
+    }
+  )

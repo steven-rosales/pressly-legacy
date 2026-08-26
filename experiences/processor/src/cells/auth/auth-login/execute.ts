@@ -8,7 +8,7 @@ import type { ProcessorSessionDependencies } from "../../../server/authenticatio
 import { processorAccessFailure } from "../../../server/authentication/model.ts"
 import { establishProcessorSession } from "../../../server/authentication/session.ts"
 import { processorLoginCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 const loginAccessInput = (
   input: ProcessorLoginInput
@@ -28,7 +28,7 @@ export type ProcessorLoginDependencies = ProcessorSessionDependencies &
 export const makeProcessorLoginCell = (
   dependencies: ProcessorLoginDependencies
 ) =>
-  bindCell(processorLoginCellDeclaration, async (input) => {
+  defineOperation(processorLoginCellDeclaration, async (input) => {
     const authenticated = await dependencies.login.execute(
       loginAccessInput(input)
     )

@@ -9,7 +9,7 @@ import {
   controlCreateCustomerV1,
   controlCreateOrderV1,
   controlLoadAuthSessionV1,
-} from '../../../generated/clients/control';
+} from '../../../topology/browser-operations.ts';
 import {
   processorLoadAuthSessionV1,
   processorLoadProductionWorkspaceV1,
@@ -23,7 +23,7 @@ import {
   productionReplaceShiftSelectionV1,
   productionStartScheduleV1,
   productionSubscribeChangesV1,
-} from '../../../generated/clients/processor';
+} from '../../../topology/browser-operations.ts';
 import {
   expect,
   fetchSameOriginJson,
@@ -33,7 +33,7 @@ import {
 } from '../support/browser-test';
 import { browserEnvironment } from '../support/environment';
 
-type GeneratedHttpSurface = Readonly<{ method: string; path: string }>;
+type HttpSurface = Readonly<{ method: string; path: string }>;
 
 const locationId = 'offline-smoke-location';
 
@@ -102,7 +102,7 @@ const generatedApiPath = (
 
 const requestGenerated = async (
   page: Page,
-  surface: GeneratedHttpSurface,
+  surface: HttpSurface,
   input: Readonly<{
     parameters?: Readonly<Record<string, string>>;
     query?: string;

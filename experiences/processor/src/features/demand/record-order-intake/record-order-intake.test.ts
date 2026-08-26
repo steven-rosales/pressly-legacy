@@ -31,7 +31,7 @@ const result: RecordOrderIntakeResult = {
 }
 
 describe("Processor record-order-intake experience", () => {
-  it("maps the unchanged command body through generated metadata", async () => {
+  it("maps the unchanged command body through declared metadata", async () => {
     const request = vi
       .fn<RecordOrderIntakeRequestTransport>()
       .mockResolvedValue(result)

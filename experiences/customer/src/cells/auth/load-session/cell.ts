@@ -1,10 +1,11 @@
-import { bindCell, declareQueryCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import type { AccessExecute } from '../../../auth/model/access.ts';
 import { customerLoadSessionContract } from './contract.ts';
 import { makeExecuteCustomerLoadSession } from './execute.ts';
 import { customerLoadSessionHttpSurface } from './http.ts';
 
-export const customerLoadSessionCellDeclaration = declareQueryCell({
+export const customerLoadSessionCellDeclaration = defineOperation({
+  kind: 'query',
   id: 'customer.load-auth-session.v1',
   authentication: 'none',
   contract: customerLoadSessionContract,
@@ -16,7 +17,7 @@ export const customerLoadSessionCellDeclaration = declareQueryCell({
 export const makeCustomerLoadSessionCell = (
   access: AccessExecute<'loadSession'>,
 ) =>
-  bindCell(
+  defineOperation(
     customerLoadSessionCellDeclaration,
     makeExecuteCustomerLoadSession(access),
   );

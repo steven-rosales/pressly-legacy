@@ -6,14 +6,15 @@ import {
   listProcessorProductionOrderControlOperationId,
 } from "./contract.ts"
 import { surface } from "./http.ts"
-import { declareQueryCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 export const listProcessorProductionOrderControlCellDeclaration =
-  declareQueryCell<
+  defineOperation<
     ListProcessorProductionOrderControlInput,
     ListProcessorOrderControlResult,
     ProductionQueryFailure
   >({
+    kind: "query",
     id: listProcessorProductionOrderControlOperationId,
     authentication: "required",
     contract: listProcessorProductionOrderControlContract,

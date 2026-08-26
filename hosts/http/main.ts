@@ -1,8 +1,9 @@
 import {
   composeHttpRuntime,
-  createHttpDatabase,
+  createPresslyDatabase,
   parseHttpRuntimeConfiguration,
-} from '@pressly/generated-runtime/http';
+} from '@pressly/topology/http';
+import { presslyObservabilityCatalog } from '@pressly/topology/observability';
 import { uuidIdSource } from '@pressly/cells/id-source/node';
 import { systemClock } from '@pressly/time';
 import type { Request, Response } from 'express';
@@ -26,8 +27,11 @@ import {
 const configuration = parseHttpRuntimeConfiguration(
   readHttpProcessEnvironment(),
 );
-const processRuntime = makeHttpProcessRuntime(configuration);
-const database = createHttpDatabase({
+const processRuntime = makeHttpProcessRuntime(
+  configuration,
+  presslyObservabilityCatalog,
+);
+const database = createPresslyDatabase({
   databaseUrl: configuration.databaseUrl,
   maxConnections: configuration.databaseMaxConnections ?? 100,
 });

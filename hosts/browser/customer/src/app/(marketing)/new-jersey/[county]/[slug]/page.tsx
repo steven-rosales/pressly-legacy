@@ -1,4 +1,4 @@
-import { customerWeb } from '@pressly/generated-runtime/browser/customer';
+import { customerWeb } from '@pressly/topology/browser/customer';
 import type { Metadata } from 'next';
 import { serverPricingCatalogLoader } from '@/composition/customer-pricing.server';
 

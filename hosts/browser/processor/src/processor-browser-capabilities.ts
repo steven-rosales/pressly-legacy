@@ -1,7 +1,7 @@
 import type {
   ProcessorBrowserCapabilities,
   ProcessorBrowserKeyInput,
-} from '@pressly/generated-runtime/browser/processor';
+} from '@pressly/topology/browser';
 
 const editableTarget = (target: EventTarget | null): boolean => {
   if (!(target instanceof HTMLElement)) return false;

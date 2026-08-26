@@ -6,7 +6,7 @@ import {
   nullErrorReporter,
 } from '@pressly/observability';
 import { systemClock } from '@pressly/time';
-import { createCustomerWebRuntime } from '@pressly/generated-runtime/browser/customer';
+import { createCustomerWebRuntime } from '@pressly/topology/browser/customer';
 import { webEnv } from '@/configuration/env';
 import { makeSentryErrorReporter } from '../telemetry/sentry-reporter';
 import { makeFetchRequestClient } from '../transport/fetch-request-client';

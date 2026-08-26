@@ -1,4 +1,4 @@
-import { bindCell, declareQueryCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import type { ProductionRemainingDayForecast } from './boundary.ts';
 import { loadRemainingDayForecastContract } from './contract.ts';
 import {
@@ -11,11 +11,12 @@ import {
   type LoadRemainingDayForecastInput,
 } from './types.ts';
 
-export const loadRemainingDayForecastCellDeclaration = declareQueryCell<
+export const loadRemainingDayForecastCellDeclaration = defineOperation<
   LoadRemainingDayForecastInput,
   ProductionRemainingDayForecast,
   LoadRemainingDayForecastExpectedFailure
 >({
+  kind: 'query',
   id: loadRemainingDayForecastOperationId,
   authentication: 'none',
   contract: loadRemainingDayForecastContract,
@@ -27,7 +28,7 @@ export const loadRemainingDayForecastCellDeclaration = declareQueryCell<
 export const makeLoadRemainingDayForecastCell = (
   dependencies: LoadRemainingDayForecastDependencies,
 ) =>
-  bindCell(
+  defineOperation(
     loadRemainingDayForecastCellDeclaration,
     makeExecuteLoadRemainingDayForecast(dependencies),
   );

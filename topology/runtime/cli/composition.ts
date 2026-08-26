@@ -211,11 +211,11 @@ export const composePresslyCliRuntime = (
   const access = makeAccessBootstrapCliSystem({
     bootstrapOwner: lazyBootstrapOwner,
   });
-  const generatedCatalog = makeCatalog({
+  const discoveredCatalog = makeCatalog({
     'experience:control': admin,
     'system:access': access,
   });
-  const selectedEntries = generatedCatalog.entries
+  const selectedEntries = discoveredCatalog.entries
     .filter((entry) => selectedForRuntime(entry, input.selection))
     .map((entry) =>
       usesRemoteClient(entry, input.selection)
@@ -226,9 +226,9 @@ export const composePresslyCliRuntime = (
     cells: Object.freeze(selectedEntries.map((entry) => entry.cell)),
     entries: Object.freeze(selectedEntries),
     ...(!input.selection.catalog.includeProgram ||
-    generatedCatalog.program === undefined
+    discoveredCatalog.program === undefined
       ? {}
-      : { program: generatedCatalog.program }),
+      : { program: discoveredCatalog.program }),
   });
 
   return Object.freeze({

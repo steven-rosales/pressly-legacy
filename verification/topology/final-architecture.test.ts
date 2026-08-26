@@ -10,7 +10,6 @@ const workspaceRootNames = Object.freeze([
   'experiences',
   'platform',
   'topology',
-  'generated',
   'verification',
 ] as const);
 const ignoredDirectories = new Set([

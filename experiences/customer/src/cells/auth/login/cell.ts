@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { customerLoginContract } from './contract.ts';
 import {
   makeExecuteCustomerLogin,
@@ -6,7 +6,8 @@ import {
 } from './execute.ts';
 import { customerLoginHttpSurface } from './http.ts';
 
-export const customerLoginCellDeclaration = declareCommandCell({
+export const customerLoginCellDeclaration = defineOperation({
+  kind: 'command',
   id: 'customer.auth-login.v1',
   authentication: 'none',
   contract: customerLoginContract,
@@ -19,7 +20,7 @@ export const customerLoginCellDeclaration = declareCommandCell({
 export const makeCustomerLoginCell = (
   dependencies: CustomerLoginDependencies,
 ) =>
-  bindCell(
+  defineOperation(
     customerLoginCellDeclaration,
     makeExecuteCustomerLogin(dependencies),
   );

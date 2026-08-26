@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { grantWorkforceAccessContract } from './contract.ts';
 import type { GrantWorkforceAccess } from './grant-workforce-access.usecase.ts';
 import {
@@ -8,11 +8,12 @@ import {
   type OperationOutput,
 } from '../../../../model/boundary/cell-contract.ts';
 
-export const grantWorkforceAccessCellDeclaration = declareCommandCell<
+export const grantWorkforceAccessCellDeclaration = defineOperation<
   OperationInput<GrantWorkforceAccess>,
   OperationOutput<GrantWorkforceAccess>,
   OperationFailure<GrantWorkforceAccess>
 >({
+  kind: 'command',
   id: 'access.grant-workforce-access.v1',
   authentication: 'required',
   contract: grantWorkforceAccessContract,
@@ -27,4 +28,7 @@ export const grantWorkforceAccessCellDeclaration = declareCommandCell<
 });
 
 export const makeGrantWorkforceAccessCell = (operation: GrantWorkforceAccess) =>
-  bindCell(grantWorkforceAccessCellDeclaration, resultOperation(operation));
+  defineOperation(
+    grantWorkforceAccessCellDeclaration,
+    resultOperation(operation),
+  );

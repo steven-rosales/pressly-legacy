@@ -1,7 +1,7 @@
 import type {
   DescribeSubscribeChangesEventSource,
   ProductionChangePort,
-} from '@pressly/generated-runtime/browser/processor';
+} from '@pressly/topology/browser';
 
 type EventSourceLike = Readonly<{
   addEventListener: (

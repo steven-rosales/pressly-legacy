@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import type { AccessExecute } from '../../../auth/model/access.ts';
 import {
   type RevokeIdentityInput,
@@ -8,11 +8,12 @@ import { customerRevokeIdentitySessionContract } from './contract.ts';
 import { makeExecuteCustomerRevokeIdentitySession } from './execute.ts';
 import { customerRevokeIdentitySessionHttpSurface } from './http.ts';
 
-export const customerRevokeIdentitySessionCellDeclaration = declareCommandCell<
+export const customerRevokeIdentitySessionCellDeclaration = defineOperation<
   RevokeIdentityInput,
   RevokedCount,
   never
 >({
+  kind: 'command',
   id: 'customer.revoke-identity-session.v1',
   contract: customerRevokeIdentitySessionContract,
   authorization: {
@@ -30,7 +31,7 @@ export const customerRevokeIdentitySessionCellDeclaration = declareCommandCell<
 export const makeCustomerRevokeIdentitySessionCell = (
   access: AccessExecute<'revokeIdentitySessions'>,
 ) =>
-  bindCell(
+  defineOperation(
     customerRevokeIdentitySessionCellDeclaration,
     makeExecuteCustomerRevokeIdentitySession(access),
   );

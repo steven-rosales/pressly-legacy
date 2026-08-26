@@ -17,13 +17,13 @@
       "@pressly/time": ["../../../platform/time/dist/index"]
     },
     "resolveJsonModule": true,
-    "types": ["node", "vitest/globals", "@testing-library/jest-dom"]
+    "types": ["node", "vitest/globals", "@testing-library/jest-dom/vitest"]
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
   "exclude": ["node_modules"],
   "references": [
     {
-      "path": "../../../generated/runtime/tsconfig.json"
+      "path": "../../../topology/tsconfig.build.json"
     },
     {
       "path": "../../../platform/cells/tsconfig.json"

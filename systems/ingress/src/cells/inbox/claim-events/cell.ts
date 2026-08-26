@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { claimEventsContract } from './contract.ts';
 import {
   makeExecuteClaimEvents,
@@ -11,11 +11,12 @@ import {
   type ClaimEventsResult,
 } from './types.ts';
 
-export const claimEventsCellDeclaration = declareCommandCell<
+export const claimEventsCellDeclaration = defineOperation<
   ClaimEventsCommand,
   ClaimEventsResult,
   ClaimEventsExpectedFailure
 >({
+  kind: 'command',
   id: claimEventsOperationId,
   authentication: 'none',
   contract: claimEventsContract,
@@ -28,4 +29,4 @@ export const claimEventsCellDeclaration = declareCommandCell<
 });
 
 export const makeClaimEventsCell = (deps: ClaimEventsDependencies) =>
-  bindCell(claimEventsCellDeclaration, makeExecuteClaimEvents(deps));
+  defineOperation(claimEventsCellDeclaration, makeExecuteClaimEvents(deps));

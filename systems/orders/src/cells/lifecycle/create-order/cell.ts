@@ -1,5 +1,5 @@
 import type { OrderLocationFactsV1Capability } from '@pressly/access-system/capabilities/order-location-facts-v1';
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import type { CustomerReferenceV1Capability } from '@pressly/customers-system/capabilities/customer-reference-v1';
 import type { PostgresDatabase } from '@pressly/postgres/client';
 import type { Clock } from '@pressly/time';
@@ -18,11 +18,12 @@ import type {
 
 export const createOrderOperationId = 'orders.create-order.v1';
 
-export const createOrderCellDeclaration = declareCommandCell<
+export const createOrderCellDeclaration = defineOperation<
   CreateOrderCommand,
   OrderMutationResult,
   CreateOrderExpectedFailure
 >({
+  kind: 'command',
   id: createOrderOperationId,
   authentication: 'required',
   contract: createOrderContract,
@@ -50,7 +51,7 @@ export const makeCreateOrderCell = (dependencies: {
   customerReferenceV1: CustomerReferenceV1Capability;
   orderLocationFactsV1: OrderLocationFactsV1Capability;
 }) =>
-  bindCell(
+  defineOperation(
     createOrderCellDeclaration,
     makeExecuteCreateOrder({
       writer: makeCreateOrderPostgresWriter(dependencies),

@@ -4,13 +4,14 @@ import type {
 } from "../../../auth/model/schemas.ts"
 import { controlListIdentitySessionsContract } from "./contract.ts"
 import { listSurface } from "./http.ts"
-import { declareQueryCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
-export const controlListIdentitySessionsCellDeclaration = declareQueryCell<
+export const controlListIdentitySessionsCellDeclaration = defineOperation<
   IdentityInput,
   SessionInventory,
   never
 >({
+  kind: "query",
   id: "control.list-identity-sessions.v1",
   contract: controlListIdentitySessionsContract,
   authorization: { capability: "auth:session:read", timing: "before-input" },

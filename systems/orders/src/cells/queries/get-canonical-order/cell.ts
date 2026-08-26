@@ -1,4 +1,4 @@
-import { bindCell, declareQueryCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import type { PostgresDatabase } from '@pressly/postgres/client';
 import type { CanonicalOrderDetail } from '../../../model/canonical-order/model.ts';
 import type { OrdersSchema } from '../../../schema/orders.ts';
@@ -11,11 +11,12 @@ import {
   type GetCanonicalOrderQuery,
 } from './types.ts';
 
-export const getCanonicalOrderCellDeclaration = declareQueryCell<
+export const getCanonicalOrderCellDeclaration = defineOperation<
   GetCanonicalOrderQuery,
   CanonicalOrderDetail,
   GetCanonicalOrderExpectedFailure
 >({
+  kind: 'query',
   id: getCanonicalOrderOperationId,
   authentication: 'none',
   contract: getCanonicalOrderContract,
@@ -28,7 +29,7 @@ export const makeGetCanonicalOrderCell = (dependencies: {
   db: PostgresDatabase;
   schema: Pick<OrdersSchema, 'orderFulfillments' | 'orderItems' | 'orders'>;
 }) =>
-  bindCell(
+  defineOperation(
     getCanonicalOrderCellDeclaration,
     makeExecuteGetCanonicalOrder(
       makeGetCanonicalOrderPostgresRepository(dependencies),

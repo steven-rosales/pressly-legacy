@@ -1,4 +1,5 @@
 import './runtime/observability/instrument.js';
+import type { RuntimeObservabilityCatalog } from '@pressly/observability';
 import {
   runWorker,
   type JobsProcessAssembly,
@@ -25,6 +26,7 @@ export type {
 
 export const runJobsProcess = async (
   composeJobs: JobsProcessComposer,
+  catalog: RuntimeObservabilityCatalog,
 ): Promise<void> => {
   const logger = makeWorkerRuntimeLogger({
     ...workerEnv.observability.sentry,
@@ -35,6 +37,7 @@ export const runJobsProcess = async (
   );
   const signals = makeWorkerSignalSinks({
     logger,
+    catalog,
     measurementLogIntervalMs: workerEnv.jobs.metricLogIntervalMs,
     sentryEnabled: workerEnv.observability.sentry.enabled,
   });

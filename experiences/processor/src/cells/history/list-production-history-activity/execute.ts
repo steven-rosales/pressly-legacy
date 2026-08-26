@@ -15,7 +15,7 @@ import {
   resolveOperationalOrders,
 } from "../../../server/model/operational-order.ts"
 import { listProcessorProductionHistoryActivityCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 export type ListProductionHistoryActivity = ProductionQuery<
   ListProcessorProductionHistoryActivityInput,
@@ -65,7 +65,7 @@ export const makeListProcessorProductionHistoryActivityCell = (dependencies: {
   listActivity: ListProductionHistoryActivity
   resolveOrderCanonical: ResolveOperationalOrderCanonical
 }) =>
-  bindCell(
+  defineOperation(
     listProcessorProductionHistoryActivityCellDeclaration,
     async (input) => {
       const activity = await dependencies.listActivity(input)

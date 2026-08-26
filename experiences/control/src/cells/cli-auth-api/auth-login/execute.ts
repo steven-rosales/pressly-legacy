@@ -6,7 +6,7 @@ import {
 } from "../../../auth/model/cli-auth-api-session.ts"
 import type { CliAuthApiLoginInput } from "../../../auth/model/cli-auth-api.ts"
 import { controlCliAuthApiLoginCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 export type ControlCliAuthApiLoginDependencies = CliAuthApiSessionDependencies &
   Readonly<{ login: AccessExecute<"login"> }>
@@ -22,7 +22,7 @@ const accessInput = (input: CliAuthApiLoginInput): AccessInput<"login"> => ({
 export const makeControlCliAuthApiLoginCell = (
   dependencies: ControlCliAuthApiLoginDependencies,
 ) =>
-  bindCell(controlCliAuthApiLoginCellDeclaration, async (input) => {
+  defineOperation(controlCliAuthApiLoginCellDeclaration, async (input) => {
     const authenticated = await dependencies.login.execute(accessInput(input))
     if (authenticated.kind === "failure") return authenticated
 

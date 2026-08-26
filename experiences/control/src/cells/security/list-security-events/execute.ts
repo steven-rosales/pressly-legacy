@@ -1,12 +1,12 @@
 import type { AccessManagementExecute } from "../../../management/model/dependencies.ts"
 import { workforceFailure } from "../../../management/model/failure.ts"
 import { listControlSecurityEventsCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 export const makeListControlSecurityEventsCell = (
   access: AccessManagementExecute<"listWorkforceSecurityEvents">,
 ) =>
-  bindCell(listControlSecurityEventsCellDeclaration, async (input) => {
+  defineOperation(listControlSecurityEventsCellDeclaration, async (input) => {
     const outcome = await access.execute({
       actor: input.context.actor,
       businessId: input.context.access.business.id,

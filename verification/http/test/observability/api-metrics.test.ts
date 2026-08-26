@@ -12,6 +12,7 @@ import {
   makeApiSignalSinks,
   requireApiSentryInitialization,
 } from '@pressly/http-host/runtime';
+import { presslyObservabilityCatalog } from '@pressly/topology/observability';
 
 describe('API Sentry initialization', () => {
   it('initializes only when the SDK creates a DSN-backed client', () => {
@@ -207,6 +208,7 @@ describe('API request metrics', () => {
     const distribution = vi.fn();
     const sinks = makeApiSignalSinks({
       logger: { info, warn } as unknown as Logger,
+      catalog: presslyObservabilityCatalog,
       sentryEnabled: true,
       metricsEnabled: true,
       sentryMetrics: { count, gauge, distribution } as never,
@@ -264,6 +266,7 @@ describe('API request metrics', () => {
     });
     const sinks = makeApiSignalSinks({
       logger: { info, warn } as unknown as Logger,
+      catalog: presslyObservabilityCatalog,
       sentryEnabled: true,
       metricsEnabled: true,
       sentryMetrics: {
@@ -301,6 +304,7 @@ describe('API request metrics', () => {
     const count = vi.fn();
     const sinks = makeApiSignalSinks({
       logger: { info, warn: vi.fn() } as unknown as Logger,
+      catalog: presslyObservabilityCatalog,
       sentryEnabled: true,
       metricsEnabled: true,
       sentryMetrics: {
@@ -333,6 +337,7 @@ describe('API request metrics', () => {
     const count = vi.fn();
     const sinks = makeApiSignalSinks({
       logger: { info: vi.fn(), warn: vi.fn() } as unknown as Logger,
+      catalog: presslyObservabilityCatalog,
       sentryEnabled: true,
       metricsEnabled: true,
       sentryMetrics: {

@@ -5,18 +5,19 @@ import type {
 } from "../../../management/workforce/contracts.ts"
 import { grantControlAccessContract } from "./contract.ts"
 import { grantAccessSurface } from "./http.ts"
-import { declareCommandCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 export const writeAuthorization = {
   capability: "team:write",
   timing: "before-input",
 } as const
 
-export const grantControlAccessCellDeclaration = declareCommandCell<
+export const grantControlAccessCellDeclaration = defineOperation<
   GrantAccessInput,
   GrantProjection,
   ControlWorkforceFailure
 >({
+  kind: "command",
   id: "control.grant-access.v1",
   contract: grantControlAccessContract,
   authorization: writeAuthorization,

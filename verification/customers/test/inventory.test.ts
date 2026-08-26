@@ -1,38 +1,26 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import * as customerReferenceSurface from '@pressly/customers-system/capabilities/customer-reference-v1';
 import { describe, expect, it } from 'vitest';
+import { customerReferenceV1CapabilityContract } from '@pressly/customers-system/capabilities/customer-reference-v1';
+import { presslyTopology } from '@pressly/topology/pressly';
 
-const repositoryRoot = fileURLToPath(new URL('../../..', import.meta.url));
-const selectedSources = [
-  'topology/pressly.topology.ts',
-  'generated/architecture-map.ts',
-  'generated/http-catalog.ts',
-  'generated/job-catalog.ts',
-  'generated/event-stream-catalog.ts',
-].map((path) => readFileSync(`${repositoryRoot}/${path}`, 'utf8'));
+const customerOperations = new Set(
+  presslyTopology.systems
+    .find((owner) => owner.id === 'customers')
+    ?.cells.map((manifest) => manifest.id),
+);
 
 describe('Customers operation inventory', () => {
-  it('selects all five cells through their owner', () => {
-    const selected = selectedSources.join('\n');
-    expect(selected).toContain('@pressly/customers-system');
-    for (const operationId of [
+  it('selects all five cells through the owner composition', () => {
+    expect([...customerOperations].sort()).toEqual([
       'customers.create-customer.v1',
-      'customers.update-customer.v1',
       'customers.get-customer.v1',
       'customers.list-customers.v1',
       'customers.resolve-exact-source-customer.v1',
-    ])
-      expect(selected).toContain(operationId);
+      'customers.update-customer.v1',
+    ]);
   });
 
-  it('publishes contract-only versioned collaboration subpaths', () => {
-    expect(Object.keys(customerReferenceSurface)).toEqual([
-      'customerReferenceV1CapabilityContract',
-    ]);
-    expect(
-      customerReferenceSurface.customerReferenceV1CapabilityContract,
-    ).toEqual({
+  it('publishes a contract-only versioned collaboration subpath', () => {
+    expect(customerReferenceV1CapabilityContract).toEqual({
       id: 'customers.customer-reference.v1',
       version: 1,
       execution: 'owner-owned',

@@ -1,7 +1,7 @@
 import type { AccessExecute, AccessInput } from "../../../auth/model/access.ts"
 import type { IdentityMutationInput } from "../../../auth/model/schemas.ts"
 import { controlCliAuthApiRegenerateMfaRecoveryCodesCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 const mutationAccessInput = (
   input: IdentityMutationInput,
@@ -13,7 +13,7 @@ const mutationAccessInput = (
 export const makeControlCliAuthApiRegenerateMfaRecoveryCodesCell = (
   access: AccessExecute<"regenerateMfaRecoveryCodes">,
 ) =>
-  bindCell(
+  defineOperation(
     controlCliAuthApiRegenerateMfaRecoveryCodesCellDeclaration,
     async (input) => {
       const outcome = await access.execute(mutationAccessInput(input))

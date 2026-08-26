@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import type {
   CaptureWebhookReceiptCommand,
   CaptureWebhookReceiptResult,
@@ -13,11 +13,12 @@ import {
   type CaptureWebhookReceiptExpectedFailure,
 } from './types.ts';
 
-export const captureWebhookReceiptCellDeclaration = declareCommandCell<
+export const captureWebhookReceiptCellDeclaration = defineOperation<
   CaptureWebhookReceiptCommand,
   CaptureWebhookReceiptResult,
   CaptureWebhookReceiptExpectedFailure
 >({
+  kind: 'command',
   id: captureWebhookReceiptOperationId,
   authentication: 'none',
   contract: captureWebhookReceiptContract,
@@ -47,7 +48,7 @@ export const captureWebhookReceiptCellDeclaration = declareCommandCell<
 export const makeCaptureWebhookReceiptCell = (
   deps: CaptureWebhookReceiptDependencies,
 ) =>
-  bindCell(
+  defineOperation(
     captureWebhookReceiptCellDeclaration,
     makeExecuteCaptureWebhookReceipt(deps),
   );

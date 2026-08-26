@@ -6,7 +6,7 @@ import {
   establishControlSession,
 } from "../../../auth/model/session.ts"
 import { controlCompleteMfaChallengeCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 export type ControlChallengeDependencies = ControlSessionDependencies &
   Readonly<{
@@ -25,7 +25,7 @@ const challengeAccessInput = (
 export const makeControlCompleteMfaChallengeCell = (
   dependencies: ControlChallengeDependencies,
 ) =>
-  bindCell(controlCompleteMfaChallengeCellDeclaration, async (input) => {
+  defineOperation(controlCompleteMfaChallengeCellDeclaration, async (input) => {
     const completed = await dependencies.completeMfaChallenge.execute(
       challengeAccessInput(input),
     )

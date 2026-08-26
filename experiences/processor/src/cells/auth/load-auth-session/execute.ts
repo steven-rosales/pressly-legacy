@@ -1,12 +1,12 @@
 import type { ProcessorSessionDependencies } from "../../../server/authentication/session.ts"
 import { loadProcessorSession } from "../../../server/authentication/session.ts"
 import { processorLoadSessionCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 export const makeProcessorLoadSessionCell = (
   dependencies: ProcessorSessionDependencies
 ) =>
-  bindCell(processorLoadSessionCellDeclaration, async (input) => {
+  defineOperation(processorLoadSessionCellDeclaration, async (input) => {
     const loaded = await loadProcessorSession(
       dependencies,
       input.sessionToken,

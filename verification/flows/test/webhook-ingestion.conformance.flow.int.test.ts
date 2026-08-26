@@ -9,7 +9,7 @@ import type { PostgresDatabase } from '@pressly/postgres/client';
 import { asc, sql } from '@pressly/postgres/query';
 import { presslyPostgresOwnerSchemas } from '@pressly/topology/postgres-schema';
 import { normalizeUnknownError } from '@pressly/errors/app-error';
-import { makeJobCatalogFromOwners } from '@pressly/generated/job-catalog';
+import { makeJobCatalogFromOwners } from '@pressly/topology/jobs';
 import { makeIngressSystem } from '@pressly/ingress-system/testing/assembly';
 import {
   makeWebhookIngestionDurableQueue,

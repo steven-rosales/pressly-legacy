@@ -39,7 +39,7 @@ const result: ProductionBatchMembershipMutationResult = {
 }
 
 describe("Processor freeze-batch-membership experience", () => {
-  it("maps the typed command body through generated route metadata", async () => {
+  it("maps the typed command body through declared route metadata", async () => {
     const request = vi
       .fn<FreezeBatchMembershipRequestTransport>()
       .mockResolvedValue(result)

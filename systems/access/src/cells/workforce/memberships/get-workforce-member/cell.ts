@@ -1,4 +1,4 @@
-import { bindCell, declareQueryCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { getWorkforceMemberContract } from './contract.ts';
 import type { GetWorkforceMember } from './get-workforce-member.usecase.ts';
 import {
@@ -8,11 +8,12 @@ import {
   type OperationOutput,
 } from '../../../../model/boundary/cell-contract.ts';
 
-export const getWorkforceMemberCellDeclaration = declareQueryCell<
+export const getWorkforceMemberCellDeclaration = defineOperation<
   OperationInput<GetWorkforceMember>,
   OperationOutput<GetWorkforceMember>,
   OperationFailure<GetWorkforceMember>
 >({
+  kind: 'query',
   id: 'access.get-workforce-member.v1',
   authentication: 'required',
   contract: getWorkforceMemberContract,
@@ -22,4 +23,7 @@ export const getWorkforceMemberCellDeclaration = declareQueryCell<
 });
 
 export const makeGetWorkforceMemberCell = (operation: GetWorkforceMember) =>
-  bindCell(getWorkforceMemberCellDeclaration, resultOperation(operation));
+  defineOperation(
+    getWorkforceMemberCellDeclaration,
+    resultOperation(operation),
+  );

@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import type { WebhookEventCompletion } from '../../../model/inbox.ts';
 import { retryEventContract } from './contract.ts';
 import { makeExecuteRetryEvent } from './execute.ts';
@@ -9,11 +9,12 @@ import {
   type RetryEventRepository,
 } from './types.ts';
 
-export const retryEventCellDeclaration = declareCommandCell<
+export const retryEventCellDeclaration = defineOperation<
   RetryEventCommand,
   WebhookEventCompletion,
   RetryEventExpectedFailure
 >({
+  kind: 'command',
   id: retryEventOperationId,
   authentication: 'none',
   contract: retryEventContract,
@@ -31,4 +32,4 @@ export const retryEventCellDeclaration = declareCommandCell<
 });
 
 export const makeRetryEventCell = (repo: RetryEventRepository) =>
-  bindCell(retryEventCellDeclaration, makeExecuteRetryEvent(repo));
+  defineOperation(retryEventCellDeclaration, makeExecuteRetryEvent(repo));

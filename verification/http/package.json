@@ -21,7 +21,6 @@
     "@pressly/experience-control": "workspace:*",
     "@pressly/experience-customer": "workspace:*",
     "@pressly/experience-processor": "workspace:*",
-    "@pressly/generated": "workspace:*",
     "@pressly/http": "workspace:*",
     "@pressly/http-host": "workspace:*",
     "@pressly/ingress-system": "workspace:*",

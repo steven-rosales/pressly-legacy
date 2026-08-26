@@ -1,4 +1,4 @@
-import { bindCell, declareQueryCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import type { ProductionWorkspace } from '../../../read-models/production-board/contract.ts';
 import { loadWorkspaceContract } from './contract.ts';
 import {
@@ -11,11 +11,12 @@ import {
   type LoadWorkspaceInput,
 } from './types.ts';
 
-export const loadWorkspaceCellDeclaration = declareQueryCell<
+export const loadWorkspaceCellDeclaration = defineOperation<
   LoadWorkspaceInput,
   ProductionWorkspace,
   LoadWorkspaceExpectedFailure
 >({
+  kind: 'query',
   id: loadWorkspaceOperationId,
   contract: loadWorkspaceContract,
   authorization: {
@@ -31,7 +32,7 @@ export const loadWorkspaceCellDeclaration = declareQueryCell<
 export const makeLoadWorkspaceCell = (
   dependencies: LoadWorkspaceDependencies,
 ) =>
-  bindCell(
+  defineOperation(
     loadWorkspaceCellDeclaration,
     makeExecuteLoadWorkspace(dependencies),
   );

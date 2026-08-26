@@ -1,4 +1,4 @@
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 import type { AccessManagementExecute } from "../../../management/model/dependencies.ts"
 import { workforceFailure } from "../../../management/model/failure.ts"
 import { projectControlMemberDetail } from "../../../management/workforce/projection.ts"
@@ -7,7 +7,7 @@ import { suspendControlMembershipCellDeclaration } from "./cell.ts"
 export const makeSuspendControlMembershipCell = (
   access: AccessManagementExecute<"transitionWorkforceMembership">,
 ) =>
-  bindCell(suspendControlMembershipCellDeclaration, async (input) => {
+  defineOperation(suspendControlMembershipCellDeclaration, async (input) => {
     const outcome = await access.execute({
       actor: input.context.actor,
       businessId: input.context.access.business.id,

@@ -7,7 +7,7 @@
       "vite/client",
       "node",
       "vitest/globals",
-      "@testing-library/jest-dom"
+      "@testing-library/jest-dom/vitest"
     ]
   },
   "include": ["src", "test", "vitest.config.ts"],
@@ -16,10 +16,7 @@
       "path": "../../../experiences/processor/tsconfig.json"
     },
     {
-      "path": "../../../generated/runtime/tsconfig.json"
-    },
-    {
-      "path": "../../../generated/tsconfig.json"
+      "path": "../../../topology/tsconfig.build.json"
     },
     {
       "path": "../../../platform/codec/tsconfig.json"

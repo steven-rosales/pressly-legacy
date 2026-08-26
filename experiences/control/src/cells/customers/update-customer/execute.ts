@@ -1,12 +1,12 @@
 import type { CustomerManagementExecute } from "../../../management/model/dependencies.ts"
 import { customerFailure } from "../../../management/model/failure.ts"
 import { updateControlCustomerCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 export const makeUpdateControlCustomerCell = (
   customers: CustomerManagementExecute<"updateCustomer">,
 ) =>
-  bindCell(updateControlCustomerCellDeclaration, async (input) => {
+  defineOperation(updateControlCustomerCellDeclaration, async (input) => {
     const outcome = await customers.execute({
       businessId: input.context.access.business.id,
       userId: input.userId,

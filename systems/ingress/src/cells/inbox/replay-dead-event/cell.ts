@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import type { ReplayDeadWebhookEventResult } from '../../../model/inbox.ts';
 import { replayDeadEventContract } from './contract.ts';
 import { replayDeadEventHttpSurface } from './http.ts';
@@ -12,11 +12,12 @@ import {
   type ReplayDeadEventExpectedFailure,
 } from './types.ts';
 
-export const replayDeadEventCellDeclaration = declareCommandCell<
+export const replayDeadEventCellDeclaration = defineOperation<
   ReplayDeadEventCommand,
   ReplayDeadWebhookEventResult,
   ReplayDeadEventExpectedFailure
 >({
+  kind: 'command',
   id: replayDeadEventOperationId,
   authentication: 'required',
   contract: replayDeadEventContract,
@@ -37,4 +38,7 @@ export const replayDeadEventCellDeclaration = declareCommandCell<
 });
 
 export const makeReplayDeadEventCell = (deps: ReplayDeadEventDependencies) =>
-  bindCell(replayDeadEventCellDeclaration, makeExecuteReplayDeadEvent(deps));
+  defineOperation(
+    replayDeadEventCellDeclaration,
+    makeExecuteReplayDeadEvent(deps),
+  );

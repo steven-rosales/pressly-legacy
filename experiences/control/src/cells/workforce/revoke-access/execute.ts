@@ -2,7 +2,7 @@ import type { AccessManagementExecute } from "../../../management/model/dependen
 import type { GrantProjection } from "../../../management/workforce/contracts.ts"
 import { workforceFailure } from "../../../management/model/failure.ts"
 import { revokeControlAccessCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 type RawGrant = Readonly<{
   id: string
@@ -38,7 +38,7 @@ export const projectControlGrant = (grant: RawGrant): GrantProjection => ({
 export const makeRevokeControlAccessCell = (
   access: AccessManagementExecute<"revokeWorkforceAccess">,
 ) =>
-  bindCell(revokeControlAccessCellDeclaration, async (input) => {
+  defineOperation(revokeControlAccessCellDeclaration, async (input) => {
     const outcome = await access.execute({
       actor: input.context.actor,
       businessId: input.context.access.business.id,

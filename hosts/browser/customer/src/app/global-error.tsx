@@ -1,6 +1,6 @@
 'use client';
 
-import { customerWebClient } from '@pressly/generated-runtime/browser/customer-client';
+import { customerWebClient } from '@pressly/topology/browser/customer-client';
 
 import { normalizeUnknownError } from '@pressly/errors/app-error';
 import { attemptObservation, decideObservation } from '@pressly/observability';

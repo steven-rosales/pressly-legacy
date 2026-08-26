@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { bootstrapOwnerContract } from './contract.ts';
 import { bootstrapOwnerCliSurface } from './cli.ts';
 import type { BootstrapOwner } from './bootstrap-owner.usecase.ts';
@@ -9,11 +9,12 @@ import {
   type OperationOutput,
 } from '../../../model/boundary/cell-contract.ts';
 
-export const bootstrapOwnerCellDeclaration = declareCommandCell<
+export const bootstrapOwnerCellDeclaration = defineOperation<
   OperationInput<BootstrapOwner>,
   OperationOutput<BootstrapOwner>,
   OperationFailure<BootstrapOwner>
 >({
+  kind: 'command',
   id: 'access.bootstrap-owner.v2',
   authentication: 'none',
   contract: bootstrapOwnerContract,
@@ -28,4 +29,4 @@ export const bootstrapOwnerCellDeclaration = declareCommandCell<
 });
 
 export const makeBootstrapOwnerCell = (operation: BootstrapOwner) =>
-  bindCell(bootstrapOwnerCellDeclaration, resultOperation(operation));
+  defineOperation(bootstrapOwnerCellDeclaration, resultOperation(operation));

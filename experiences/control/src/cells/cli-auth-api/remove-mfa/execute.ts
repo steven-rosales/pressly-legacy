@@ -1,7 +1,7 @@
 import type { AccessExecute, AccessInput } from "../../../auth/model/access.ts"
 import type { RemoveMfaInput } from "../../../auth/model/schemas.ts"
 import { controlCliAuthApiRemoveMfaCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 const removeAccessInput = (
   input: RemoveMfaInput,
@@ -14,6 +14,6 @@ const removeAccessInput = (
 export const makeControlCliAuthApiRemoveMfaCell = (
   access: AccessExecute<"removeMfa">,
 ) =>
-  bindCell(controlCliAuthApiRemoveMfaCellDeclaration, (input) =>
+  defineOperation(controlCliAuthApiRemoveMfaCellDeclaration, (input) =>
     access.execute(removeAccessInput(input)),
   )

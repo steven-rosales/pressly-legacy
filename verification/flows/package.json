@@ -14,7 +14,6 @@
   "dependencies": {
     "@pressly/access-system": "workspace:*",
     "@pressly/errors": "workspace:*",
-    "@pressly/generated": "workspace:*",
     "@pressly/ingress-system": "workspace:*",
     "@pressly/jobs": "workspace:*",
     "@pressly/jobs-host": "workspace:*",

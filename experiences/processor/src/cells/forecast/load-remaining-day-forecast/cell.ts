@@ -6,22 +6,22 @@ import {
   loadProcessorRemainingDayForecastOperationId,
 } from "./contract.ts"
 import { surface } from "./http.ts"
-import { declareQueryCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
-export const loadProcessorRemainingDayForecastCellDeclaration =
-  declareQueryCell<
-    LoadProcessorRemainingDayForecastInput,
-    ProcessorRemainingDayForecast,
-    ProductionQueryFailure
-  >({
-    id: loadProcessorRemainingDayForecastOperationId,
-    authentication: "required",
-    contract: loadProcessorRemainingDayForecastContract,
-    authorization: {
-      capability: "production:read",
-      timing: "after-input",
-      scope: (input) => input.locationId,
-    },
-    surfaces: [surface],
-    observability: { operation: "processor.load_remaining_day_forecast" },
-  })
+export const loadProcessorRemainingDayForecastCellDeclaration = defineOperation<
+  LoadProcessorRemainingDayForecastInput,
+  ProcessorRemainingDayForecast,
+  ProductionQueryFailure
+>({
+  kind: "query",
+  id: loadProcessorRemainingDayForecastOperationId,
+  authentication: "required",
+  contract: loadProcessorRemainingDayForecastContract,
+  authorization: {
+    capability: "production:read",
+    timing: "after-input",
+    scope: (input) => input.locationId,
+  },
+  surfaces: [surface],
+  observability: { operation: "processor.load_remaining_day_forecast" },
+})

@@ -2,7 +2,7 @@ import type {
   AccessExperienceOperations,
   ProductionCapabilitiesForLocation,
 } from "@pressly/access-system/capabilities/experience-access-v1"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 import { resolveProcessorAccessCellDeclaration } from "./cell.ts"
 import type { ProcessorApplicationOrigins } from "./model.ts"
 import { resolveProcessorAccess } from "./policy.ts"
@@ -20,7 +20,7 @@ export type ResolveProcessorAccessDependencies = Readonly<{
 export const makeResolveProcessorAccessCell = (
   dependencies: ResolveProcessorAccessDependencies
 ) =>
-  bindCell(resolveProcessorAccessCellDeclaration, async (session) => {
+  defineOperation(resolveProcessorAccessCellDeclaration, async (session) => {
     const locations =
       await dependencies.listActiveProductionLocations.execute(null)
     if (locations.kind === "failure") return locations

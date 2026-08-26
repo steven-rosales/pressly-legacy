@@ -21,10 +21,10 @@ const contents = (root: string): string =>
     .join('\n');
 
 describe('jobs runtime ownership', () => {
-  it('keeps the host business-neutral and process effects out of topology', () => {
+  it('keeps the host business-neutral while selecting topology explicitly', () => {
     const host = contents(join(repositoryRoot, 'hosts/jobs/src'));
     expect(host).not.toMatch(
-      /@pressly\/(?:access|customers|ingress|orders|pricing|production)-system|@pressly\/experience-|@pressly\/topology/,
+      /@pressly\/(?:access|customers|ingress|orders|pricing|production)-system|@pressly\/experience-/,
     );
 
     const topology = contents(join(repositoryRoot, 'topology/runtime/jobs'));
@@ -34,6 +34,7 @@ describe('jobs runtime ownership', () => {
         .map((path) => relative(repositoryRoot, path))
         .sort(),
     ).toEqual([
+      'topology/runtime/jobs/catalog.ts',
       'topology/runtime/jobs/pressly-jobs.composition.ts',
       'topology/runtime/jobs/public.ts',
       'topology/runtime/jobs/types.ts',

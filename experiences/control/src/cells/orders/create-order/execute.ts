@@ -3,7 +3,7 @@ import type { ControlOrderOrLocationFailure } from "../../../management/model/fa
 import type { ListControlOrdersInput } from "../../../management/orders/contracts.ts"
 import { orderFailure } from "../../../management/model/failure.ts"
 import { createControlOrderCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 const allowedLocationIds = (
   input: ListControlOrdersInput["context"],
@@ -33,7 +33,7 @@ const allowedLocationIds = (
 export const makeCreateControlOrderCell = (
   orders: OrderManagementExecute<"createOrder">,
 ) =>
-  bindCell(createControlOrderCellDeclaration, async (input) => {
+  defineOperation(createControlOrderCellDeclaration, async (input) => {
     const locationIds = allowedLocationIds(
       input.context,
       input.fulfillment.locationId,

@@ -15,7 +15,7 @@ import {
   requireOperationalOrderContext,
 } from "../../../server/model/operational-order-audit.ts"
 import { listProcessorProductionOrderControlCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 export type ListProductionOrderControl = ProductionQuery<
   ListProcessorProductionOrderControlInput,
@@ -60,7 +60,7 @@ export const makeListProcessorProductionOrderControlCell = (dependencies: {
   resolveOrderCanonical: ResolveOperationalOrderCanonical
   loadOrderAudit: LoadOperationalOrderAudit
 }) =>
-  bindCell(
+  defineOperation(
     listProcessorProductionOrderControlCellDeclaration,
     async (input) => {
       const result = await dependencies.listOrderControl(input)

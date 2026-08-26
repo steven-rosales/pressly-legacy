@@ -40,10 +40,10 @@
   "dependencies": {
     "@pressly/cells": "workspace:*",
     "@pressly/errors": "workspace:*",
-    "@pressly/generated-runtime": "workspace:*",
     "@pressly/http": "workspace:*",
     "@pressly/postgres": "workspace:*",
     "@pressly/time": "workspace:*",
+    "@pressly/topology": "workspace:*",
     "dotenv": "^17.4.2",
     "ink": "^6.8.0",
     "react": "^19.2.6"

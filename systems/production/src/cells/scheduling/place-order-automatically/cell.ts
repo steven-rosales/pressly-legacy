@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { placeOrderAutomaticallyContract } from './contract.ts';
 import { placeOrderAutomaticallyOperationId } from './decide.ts';
 import {
@@ -12,11 +12,12 @@ import type {
   PlaceProductionOrderAutomaticallyCommand,
 } from './types.ts';
 
-export const placeOrderAutomaticallyCellDeclaration = declareCommandCell<
+export const placeOrderAutomaticallyCellDeclaration = defineOperation<
   PlaceProductionOrderAutomaticallyCommand,
   AutomaticProductionOrderPlacementResult,
   PlaceOrderAutomaticallyExpectedFailure
 >({
+  kind: 'command',
   id: placeOrderAutomaticallyOperationId,
   contract: placeOrderAutomaticallyContract,
   authorization: {
@@ -39,7 +40,7 @@ export const placeOrderAutomaticallyCellDeclaration = declareCommandCell<
 export const makePlaceOrderAutomaticallyCell = <StoredWorkEvent>(
   deps: PlaceOrderAutomaticallyDependencies<StoredWorkEvent>,
 ) =>
-  bindCell(
+  defineOperation(
     placeOrderAutomaticallyCellDeclaration,
     makeExecutePlaceOrderAutomatically(deps),
   );

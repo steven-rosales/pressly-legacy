@@ -1,4 +1,4 @@
-import { customerWeb } from '@pressly/generated-runtime/browser/customer';
+import { customerWeb } from '@pressly/topology/browser/customer';
 import type { ReactNode } from 'react';
 
 export default function MarketingLayout({ children }: { children: ReactNode }) {

@@ -1,4 +1,4 @@
-import { bindCell, declareQueryCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import type { ListProductionOrderControlResult } from '../../../read-models/production-order-control/contract.ts';
 import { listOrderControlContract } from './contract.ts';
 import {
@@ -11,11 +11,12 @@ import {
   type ListOrderControlInput,
 } from './types.ts';
 
-export const listOrderControlCellDeclaration = declareQueryCell<
+export const listOrderControlCellDeclaration = defineOperation<
   ListOrderControlInput,
   ListProductionOrderControlResult,
   ListOrderControlExpectedFailure
 >({
+  kind: 'query',
   id: listOrderControlOperationId,
   authentication: 'none',
   contract: listOrderControlContract,
@@ -27,7 +28,7 @@ export const listOrderControlCellDeclaration = declareQueryCell<
 export const makeListOrderControlCell = (
   dependencies: ListOrderControlDependencies,
 ) =>
-  bindCell(
+  defineOperation(
     listOrderControlCellDeclaration,
     makeExecuteListOrderControl(dependencies),
   );

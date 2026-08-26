@@ -5,14 +5,7 @@ import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
 const repositoryRoot = fileURLToPath(new URL('../..', import.meta.url));
-const sourceRoots = [
-  'experiences',
-  'generated',
-  'hosts',
-  'platform',
-  'systems',
-  'topology',
-];
+const sourceRoots = ['experiences', 'hosts', 'platform', 'systems', 'topology'];
 const ignoredDirectories = new Set([
   '.next',
   '.turbo',

@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { resolveSourceClosedFulfillmentContract } from './contract.ts';
 import {
   makeExecuteResolveSourceClosedFulfillment,
@@ -11,11 +11,12 @@ import {
   type ResolveSourceClosedFulfillmentResult,
 } from './types.ts';
 
-export const resolveSourceClosedFulfillmentCellDeclaration = declareCommandCell<
+export const resolveSourceClosedFulfillmentCellDeclaration = defineOperation<
   ResolveSourceClosedFulfillmentCommand,
   ResolveSourceClosedFulfillmentResult,
   ResolveSourceClosedFulfillmentExpectedFailure
 >({
+  kind: 'command',
   id: resolveSourceClosedFulfillmentOperationId,
   authentication: 'none',
   contract: resolveSourceClosedFulfillmentContract,
@@ -35,7 +36,7 @@ export const resolveSourceClosedFulfillmentCellDeclaration = declareCommandCell<
 export const makeResolveSourceClosedFulfillmentCell = (
   deps: ResolveSourceClosedFulfillmentDependencies,
 ) =>
-  bindCell(
+  defineOperation(
     resolveSourceClosedFulfillmentCellDeclaration,
     makeExecuteResolveSourceClosedFulfillment(deps),
   );

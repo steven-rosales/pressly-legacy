@@ -5,13 +5,14 @@ import type {
 } from "../../../management/invitations/contracts.ts"
 import { previewControlInvitationContract } from "./contract.ts"
 import { previewSurface } from "./http.ts"
-import { declareQueryCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
-export const previewControlInvitationCellDeclaration = declareQueryCell<
+export const previewControlInvitationCellDeclaration = defineOperation<
   PreviewInvitationInput,
   InvitationPreview,
   InvitationPreviewFailure
 >({
+  kind: "query",
   id: "control.preview-invitation.v1",
   authentication: "none",
   contract: previewControlInvitationContract,

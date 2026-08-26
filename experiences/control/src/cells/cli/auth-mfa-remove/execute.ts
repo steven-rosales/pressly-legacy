@@ -6,7 +6,7 @@ import type {
 } from "../../../cli/model.ts"
 import { readRequiredSession } from "../../../cli/model.ts"
 import { adminCliAuthMfaRemoveCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 const withSession = async <Output>(
   store: AdminCliSessionStore,
@@ -28,7 +28,7 @@ const withSession = async <Output>(
 export const makeAdminCliAuthMfaRemoveCell = (
   dependencies: AdminCliAuthDependencies,
 ) =>
-  bindCell(adminCliAuthMfaRemoveCellDeclaration, (input) => {
+  defineOperation(adminCliAuthMfaRemoveCellDeclaration, (input) => {
     void input
     return withSession(dependencies.session, (session) =>
       dependencies.api.removeMfa(session.accessToken),

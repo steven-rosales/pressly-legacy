@@ -1,4 +1,4 @@
-import { bindCell, declareReactionCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { applyFulfillmentDemandContract } from './contract.ts';
 import {
   makeExecuteApplyFulfillmentDemand,
@@ -13,11 +13,12 @@ import { applyFulfillmentDemandOperationId } from './types.ts';
 import { applyFulfillmentDemandJobSurface } from './job.ts';
 import { applyFulfillmentDemandConsumedMessages } from './message.ts';
 
-export const applyFulfillmentDemandCellDeclaration = declareReactionCell<
+export const applyFulfillmentDemandCellDeclaration = defineOperation<
   ApplyFulfillmentDemandCommand,
   ApplyFulfillmentDemandResult,
   ApplyFulfillmentDemandExpectedFailure
 >({
+  kind: 'reaction',
   id: applyFulfillmentDemandOperationId,
   authentication: 'none',
   contract: applyFulfillmentDemandContract,
@@ -46,7 +47,7 @@ export const applyFulfillmentDemandCellDeclaration = declareReactionCell<
 export const makeApplyFulfillmentDemandCell = <StoredWorkEvent>(
   deps: ApplyFulfillmentDemandDependencies<StoredWorkEvent>,
 ) =>
-  bindCell(
+  defineOperation(
     applyFulfillmentDemandCellDeclaration,
     makeExecuteApplyFulfillmentDemand(deps),
   );

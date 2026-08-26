@@ -13,10 +13,7 @@
       "path": "../../../experiences/processor/tsconfig.json"
     },
     {
-      "path": "../../../generated/runtime/tsconfig.json"
-    },
-    {
-      "path": "../../../generated/tsconfig.json"
+      "path": "../../../topology/tsconfig.build.json"
     },
     {
       "path": "../../../platform/codec/tsconfig.json"

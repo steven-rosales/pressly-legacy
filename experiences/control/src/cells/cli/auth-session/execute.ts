@@ -6,7 +6,7 @@ import type {
 } from "../../../cli/model.ts"
 import { readRequiredSession } from "../../../cli/model.ts"
 import { adminCliAuthSessionCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 const withSession = async <Output>(
   store: AdminCliSessionStore,
@@ -28,7 +28,7 @@ const withSession = async <Output>(
 export const makeAdminCliAuthSessionCell = (
   dependencies: AdminCliAuthDependencies,
 ) =>
-  bindCell(adminCliAuthSessionCellDeclaration, (input) => {
+  defineOperation(adminCliAuthSessionCellDeclaration, (input) => {
     void input
     return withSession(dependencies.session, (session) =>
       dependencies.api.loadSession(session.accessToken),

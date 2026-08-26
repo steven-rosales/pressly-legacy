@@ -1,6 +1,6 @@
 import type { BrowserResponseCodec } from '@pressly/experience-processor/browser';
 import { describe, expect, it, vi } from 'vitest';
-import { makeProcessorBrowserRequestTransport as makeBrowserRequestAdapter } from '@pressly/generated-runtime/browser/processor';
+import { makeProcessorBrowserRequestTransport as makeBrowserRequestAdapter } from '@pressly/topology/browser';
 import { makeFetchRequestAdapter } from '../../../src/runtime/fetch-request.adapter.ts';
 
 const codec = <Output>(

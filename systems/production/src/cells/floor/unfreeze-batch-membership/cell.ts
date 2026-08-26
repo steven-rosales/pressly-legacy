@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { unfreezeBatchMembershipContract } from './contract.ts';
 import { unfreezeBatchMembershipOperationId } from './decide.ts';
 import {
@@ -12,11 +12,12 @@ import type {
   UnfreezeBatchMembershipResult,
 } from './types.ts';
 
-export const unfreezeBatchMembershipCellDeclaration = declareCommandCell<
+export const unfreezeBatchMembershipCellDeclaration = defineOperation<
   UnfreezeBatchMembershipCommand,
   UnfreezeBatchMembershipResult,
   UnfreezeBatchMembershipExpectedFailure
 >({
+  kind: 'command',
   id: unfreezeBatchMembershipOperationId,
   contract: unfreezeBatchMembershipContract,
   authorization: {
@@ -40,7 +41,7 @@ export const unfreezeBatchMembershipCellDeclaration = declareCommandCell<
 export const makeUnfreezeBatchMembershipCell = <Stored>(
   deps: UnfreezeBatchMembershipDependencies<Stored>,
 ) =>
-  bindCell(
+  defineOperation(
     unfreezeBatchMembershipCellDeclaration,
     makeExecuteUnfreezeBatchMembership(deps),
   );

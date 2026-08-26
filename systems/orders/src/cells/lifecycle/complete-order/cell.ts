@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import type { PostgresDatabase } from '@pressly/postgres/client';
 import type { Clock } from '@pressly/time';
 import type { OrderMutationResult } from '../../../model/canonical-order/model.ts';
@@ -15,11 +15,12 @@ import {
   type CompleteOrderExpectedFailure,
 } from './types.ts';
 
-export const completeOrderCellDeclaration = declareCommandCell<
+export const completeOrderCellDeclaration = defineOperation<
   CompleteOrderCommand,
   OrderMutationResult,
   CompleteOrderExpectedFailure
 >({
+  kind: 'command',
   id: completeOrderOperationId,
   authentication: 'required',
   contract: completeOrderContract,
@@ -46,7 +47,7 @@ export const makeCompleteOrderCell = (dependencies: {
   schema: OrdersSchema;
   clock: Clock;
 }) =>
-  bindCell(
+  defineOperation(
     completeOrderCellDeclaration,
     makeExecuteCompleteOrder({
       writer: makeCompleteOrderPostgresWriter(dependencies),

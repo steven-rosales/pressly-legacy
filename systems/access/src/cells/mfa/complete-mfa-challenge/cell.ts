@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { completeMfaChallengeContract } from './contract.ts';
 import type { CompleteMfaChallenge } from './complete-mfa-challenge.usecase.ts';
 import {
@@ -8,11 +8,12 @@ import {
   type OperationOutput,
 } from '../../../model/boundary/cell-contract.ts';
 
-export const completeMfaChallengeCellDeclaration = declareCommandCell<
+export const completeMfaChallengeCellDeclaration = defineOperation<
   OperationInput<CompleteMfaChallenge>,
   OperationOutput<CompleteMfaChallenge>,
   OperationFailure<CompleteMfaChallenge>
 >({
+  kind: 'command',
   id: 'access.complete-mfa-challenge.v1',
   authentication: 'none',
   contract: completeMfaChallengeContract,
@@ -27,4 +28,7 @@ export const completeMfaChallengeCellDeclaration = declareCommandCell<
 });
 
 export const makeCompleteMfaChallengeCell = (operation: CompleteMfaChallenge) =>
-  bindCell(completeMfaChallengeCellDeclaration, resultOperation(operation));
+  defineOperation(
+    completeMfaChallengeCellDeclaration,
+    resultOperation(operation),
+  );

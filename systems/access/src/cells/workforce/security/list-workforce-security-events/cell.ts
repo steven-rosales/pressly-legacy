@@ -1,4 +1,4 @@
-import { bindCell, declareQueryCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { listWorkforceSecurityEventsContract } from './contract.ts';
 import type { ListWorkforceSecurityEvents } from './list-workforce-security-events.usecase.ts';
 import {
@@ -8,11 +8,12 @@ import {
   type OperationOutput,
 } from '../../../../model/boundary/cell-contract.ts';
 
-export const listWorkforceSecurityEventsCellDeclaration = declareQueryCell<
+export const listWorkforceSecurityEventsCellDeclaration = defineOperation<
   OperationInput<ListWorkforceSecurityEvents>,
   OperationOutput<ListWorkforceSecurityEvents>,
   OperationFailure<ListWorkforceSecurityEvents>
 >({
+  kind: 'query',
   id: 'access.list-workforce-security-events.v1',
   authentication: 'required',
   contract: listWorkforceSecurityEventsContract,
@@ -24,7 +25,7 @@ export const listWorkforceSecurityEventsCellDeclaration = declareQueryCell<
 export const makeListWorkforceSecurityEventsCell = (
   operation: ListWorkforceSecurityEvents,
 ) =>
-  bindCell(
+  defineOperation(
     listWorkforceSecurityEventsCellDeclaration,
     resultOperation(operation),
   );

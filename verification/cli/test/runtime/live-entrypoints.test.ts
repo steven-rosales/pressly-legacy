@@ -5,7 +5,7 @@ import {
   authCliUsage,
   pricingCliUsage,
 } from '@pressly/experience-control/cli/presentation';
-import { makeCliCatalogFromOwners } from '@pressly/generated/cli-catalog';
+import { makeCliCatalogFromOwners } from '@pressly/topology/cli';
 import { describe, expect, it } from 'vitest';
 import { runCliRuntime } from '../../../../hosts/cli/src/runtime/process-runtime.ts';
 import { composePresslyCliRuntime } from '../../../../topology/runtime/cli/composition.ts';
@@ -47,7 +47,7 @@ const execute = (file: string, argv: readonly string[]) => {
 };
 
 describe('live CLI entrypoints', () => {
-  it('routes the app API and pressly-admin process through generated help bytes', async () => {
+  it('routes the app API and pressly-admin process through topology-selected help bytes', async () => {
     const output = captureIo();
     await expect(
       runCliRuntime(

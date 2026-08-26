@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { customerCompleteMfaChallengeContract } from './contract.ts';
 import {
   makeExecuteCustomerCompleteMfaChallenge,
@@ -6,7 +6,8 @@ import {
 } from './execute.ts';
 import { customerCompleteMfaChallengeHttpSurface } from './http.ts';
 
-export const customerCompleteMfaChallengeCellDeclaration = declareCommandCell({
+export const customerCompleteMfaChallengeCellDeclaration = defineOperation({
+  kind: 'command',
   id: 'customer.complete-mfa-challenge.v1',
   authentication: 'none',
   contract: customerCompleteMfaChallengeContract,
@@ -21,7 +22,7 @@ export const customerCompleteMfaChallengeCellDeclaration = declareCommandCell({
 export const makeCustomerCompleteMfaChallengeCell = (
   dependencies: CustomerCompleteMfaChallengeDependencies,
 ) =>
-  bindCell(
+  defineOperation(
     customerCompleteMfaChallengeCellDeclaration,
     makeExecuteCustomerCompleteMfaChallenge(dependencies),
   );

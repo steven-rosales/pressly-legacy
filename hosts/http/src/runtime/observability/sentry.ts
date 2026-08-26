@@ -6,14 +6,6 @@ import {
 } from '@pressly/errors/app-error';
 import { unexpectedError } from '@pressly/errors/factories';
 import {
-  isMetricName,
-  metricCatalog,
-  observabilityOperationIdFor,
-  type MetricAttributeKey,
-  type MetricName,
-  type MetricUnit,
-} from '@pressly/generated/observability-catalog';
-import {
   makeJsonLogger,
   makeStructuredLogger,
   redactLogFields,
@@ -32,7 +24,9 @@ import {
   type ErrorReporter,
   type MeasurementLabels,
   type MeasurementSink,
+  type RuntimeObservabilityCatalog,
   type TraceSink,
+  type CatalogMetricUnit,
 } from '@pressly/observability';
 import { systemClock } from '@pressly/time';
 
@@ -196,21 +190,23 @@ export const makeApiRuntimeLogger = (config: SentryConfig): Logger => {
 };
 
 const metricAttributes = (
-  name: MetricName,
+  catalog: RuntimeObservabilityCatalog,
+  name: string,
   labels: CounterLabels | MeasurementLabels | undefined,
 ): Record<string, string> => {
-  const definition = metricCatalog[name];
-  const allowed = new Set<MetricAttributeKey>(definition.allowedAttributes);
+  const definition = catalog.metrics[name];
+  if (definition === undefined) return { runtime: 'api' };
+  const allowed = new Set(definition.allowedAttributes);
   const attributes: Record<string, string> = { runtime: 'api' };
 
   for (const [key, value] of Object.entries(labels ?? {})) {
     if (key === 'runtime') continue;
-    if (!allowed.has(key as MetricAttributeKey)) continue;
+    if (!allowed.has(key)) continue;
 
     const finiteAttributeValues = definition.attributeValues as
-      | Readonly<Partial<Record<MetricAttributeKey, readonly string[]>>>
+      | Readonly<Partial<Record<string, readonly string[]>>>
       | undefined;
-    const finiteValues = finiteAttributeValues?.[key as MetricAttributeKey];
+    const finiteValues = finiteAttributeValues?.[key];
     attributes[key] =
       finiteValues === undefined
         ? /^[a-z0-9_./:-]{1,120}$/i.test(value)
@@ -226,7 +222,7 @@ const metricAttributes = (
     allowed.has('operation_id') &&
     attributes['operation'] !== undefined
   ) {
-    const operationId = observabilityOperationIdFor(attributes['operation']);
+    const operationId = catalog.operationIdFor(attributes['operation']);
     if (operationId !== undefined) attributes['operation_id'] = operationId;
   }
 
@@ -237,13 +233,14 @@ type ApiSentryMetrics = Readonly<
   Pick<typeof Sentry.metrics, 'count' | 'gauge' | 'distribution'>
 >;
 
-const sentryMetricUnit = (unit: MetricUnit): 'second' | undefined =>
+const sentryMetricUnit = (unit: CatalogMetricUnit): 'second' | undefined =>
   // Sentry represents count semantics with its unitless default. The catalog's
   // `count` is a domain contract and must not be forwarded as an SDK unit.
   unit === 'second' ? 'second' : undefined;
 
 export const makeApiSignalSinks = (input: {
   logger: Logger;
+  catalog: RuntimeObservabilityCatalog;
   sentryEnabled: boolean;
   metricsEnabled: boolean;
   sentryMetrics?: ApiSentryMetrics;
@@ -261,11 +258,11 @@ export const makeApiSignalSinks = (input: {
     value: number,
     labels: CounterLabels | MeasurementLabels | undefined,
   ): void => {
-    if (!isMetricName(name)) return;
-    const definition = metricCatalog[name];
+    const definition = input.catalog.metrics[name];
+    if (definition === undefined) return;
     const unit = sentryMetricUnit(definition.unit);
     const options = {
-      attributes: metricAttributes(name, labels),
+      attributes: metricAttributes(input.catalog, name, labels),
       ...(unit === undefined ? {} : { unit }),
     };
 

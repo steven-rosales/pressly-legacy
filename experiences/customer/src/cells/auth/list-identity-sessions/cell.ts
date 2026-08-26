@@ -1,4 +1,4 @@
-import { bindCell, declareQueryCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import type { AccessExecute } from '../../../auth/model/access.ts';
 import {
   type IdentityInput,
@@ -8,11 +8,12 @@ import { customerListIdentitySessionsContract } from './contract.ts';
 import { makeExecuteCustomerListIdentitySessions } from './execute.ts';
 import { customerListIdentitySessionsHttpSurface } from './http.ts';
 
-export const customerListIdentitySessionsCellDeclaration = declareQueryCell<
+export const customerListIdentitySessionsCellDeclaration = defineOperation<
   IdentityInput,
   SessionInventory,
   never
 >({
+  kind: 'query',
   id: 'customer.list-identity-sessions.v1',
   contract: customerListIdentitySessionsContract,
   authorization: {
@@ -29,7 +30,7 @@ export const customerListIdentitySessionsCellDeclaration = declareQueryCell<
 export const makeCustomerListIdentitySessionsCell = (
   access: AccessExecute<'listIdentitySessions'>,
 ) =>
-  bindCell(
+  defineOperation(
     customerListIdentitySessionsCellDeclaration,
     makeExecuteCustomerListIdentitySessions(access),
   );

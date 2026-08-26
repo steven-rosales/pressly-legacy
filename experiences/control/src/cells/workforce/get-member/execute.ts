@@ -6,7 +6,7 @@ import type {
 } from "../../../management/workforce/contracts.ts"
 import { workforceFailure } from "../../../management/model/failure.ts"
 import { getControlMemberCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 type RawGrant = Readonly<{
   id: string
@@ -88,7 +88,7 @@ export const projectControlMemberDetail = (
 export const makeGetControlMemberCell = (
   access: AccessManagementExecute<"getWorkforceMember">,
 ) =>
-  bindCell(getControlMemberCellDeclaration, async (input) => {
+  defineOperation(getControlMemberCellDeclaration, async (input) => {
     const outcome = await access.execute({
       actor: input.context.actor,
       businessId: input.context.access.business.id,

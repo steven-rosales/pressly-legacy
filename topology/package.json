@@ -40,14 +40,61 @@
       "types": "./dist/runtime/browser/public.d.ts",
       "import": "./dist/runtime/browser/public.js",
       "default": "./dist/runtime/browser/public.js"
+    },
+    "./http": {
+      "types": "./dist/http.d.ts",
+      "import": "./dist/http.js",
+      "default": "./dist/http.js"
+    },
+    "./jobs": {
+      "types": "./dist/jobs.d.ts",
+      "import": "./dist/jobs.js",
+      "default": "./dist/jobs.js"
+    },
+    "./cli": {
+      "types": "./dist/cli.d.ts",
+      "import": "./dist/cli.js",
+      "default": "./dist/cli.js"
+    },
+    "./browser": {
+      "types": "./dist/browser.d.ts",
+      "import": "./dist/browser.js",
+      "default": "./dist/browser.js"
+    },
+    "./browser/customer": {
+      "types": "./dist/browser/customer.d.ts",
+      "import": "./dist/browser/customer.js",
+      "default": "./dist/browser/customer.js"
+    },
+    "./browser/customer-client": {
+      "types": "./dist/browser/customer-client.d.ts",
+      "import": "./dist/browser/customer-client.js",
+      "default": "./dist/browser/customer-client.js"
+    },
+    "./browser/processor": {
+      "types": "./dist/browser/processor.d.ts",
+      "import": "./dist/browser/processor.js",
+      "default": "./dist/browser/processor.js"
+    },
+    "./browser-operations": {
+      "types": "./dist/browser-operations.d.ts",
+      "import": "./dist/browser-operations.js",
+      "default": "./dist/browser-operations.js"
+    },
+    "./observability": {
+      "types": "./dist/observability.d.ts",
+      "import": "./dist/observability.js",
+      "default": "./dist/observability.js"
+    },
+    "./database": {
+      "types": "./dist/database.d.ts",
+      "import": "./dist/database.js",
+      "default": "./dist/database.js"
     }
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "check:generated": "tsx tooling/check-generated.ts",
     "clean": "rm -rf dist",
-    "explain": "tsx tooling/explain.ts",
-    "generate": "tsx tooling/generate.ts",
     "generate:migrations": "drizzle-kit generate --config tooling/drizzle.config.ts",
     "lint": "eslint src runtime tooling *.ts --max-warnings=0",
     "test": "VITEST_MAX_WORKERS=2 vitest run --config ../verification/topology/vitest.config.ts",
@@ -74,10 +121,12 @@
     "@pressly/pricing-system": "workspace:*",
     "@pressly/production-system": "workspace:*",
     "@pressly/time": "workspace:*",
+    "react": "^19.2.6",
     "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
+    "@types/react": "^19",
     "drizzle-kit": "^0.31.10",
     "prettier": "^3.8.3",
     "tsx": "^4.23.11",

@@ -3,7 +3,7 @@ import type { CliLoginResult } from "../../../cli/model.ts"
 import { cliFailure } from "../../../cli/model.ts"
 import { adminCliAuthLoginCellDeclaration } from "./cell.ts"
 import type { loginInputSchema } from "./contract.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 import type { z } from "zod"
 
 type LoginInput = z.output<typeof loginInputSchema>
@@ -65,6 +65,6 @@ const login = async (
 export const makeAdminCliAuthLoginCell = (
   dependencies: AdminCliAuthDependencies,
 ) =>
-  bindCell(adminCliAuthLoginCellDeclaration, (input) =>
+  defineOperation(adminCliAuthLoginCellDeclaration, (input) =>
     login(dependencies, input),
   )

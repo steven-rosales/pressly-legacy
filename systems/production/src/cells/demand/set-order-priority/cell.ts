@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { setOrderPriorityContract } from './contract.ts';
 import { setOrderPriorityOperationId } from './decide.ts';
 import {
@@ -12,11 +12,12 @@ import type {
   SetOrderPriorityResult,
 } from './types.ts';
 
-export const setOrderPriorityCellDeclaration = declareCommandCell<
+export const setOrderPriorityCellDeclaration = defineOperation<
   SetOrderPriorityCommand,
   SetOrderPriorityResult,
   SetOrderPriorityExpectedFailure
 >({
+  kind: 'command',
   id: setOrderPriorityOperationId,
   contract: setOrderPriorityContract,
   authorization: {
@@ -42,4 +43,7 @@ export const setOrderPriorityCellDeclaration = declareCommandCell<
 export const makeSetOrderPriorityCell = <StoredWorkEvent>(
   deps: SetOrderPriorityDependencies<StoredWorkEvent>,
 ) =>
-  bindCell(setOrderPriorityCellDeclaration, makeExecuteSetOrderPriority(deps));
+  defineOperation(
+    setOrderPriorityCellDeclaration,
+    makeExecuteSetOrderPriority(deps),
+  );

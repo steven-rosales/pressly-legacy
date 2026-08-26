@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { revokeWorkforceMemberSessionsContract } from './contract.ts';
 import type { RevokeWorkforceMemberSessions } from './revoke-workforce-member-sessions.usecase.ts';
 import {
@@ -8,11 +8,12 @@ import {
   type OperationOutput,
 } from '../../../../model/boundary/cell-contract.ts';
 
-export const revokeWorkforceMemberSessionsCellDeclaration = declareCommandCell<
+export const revokeWorkforceMemberSessionsCellDeclaration = defineOperation<
   OperationInput<RevokeWorkforceMemberSessions>,
   OperationOutput<RevokeWorkforceMemberSessions>,
   OperationFailure<RevokeWorkforceMemberSessions>
 >({
+  kind: 'command',
   id: 'access.revoke-workforce-member-sessions.v1',
   authentication: 'required',
   contract: revokeWorkforceMemberSessionsContract,
@@ -29,7 +30,7 @@ export const revokeWorkforceMemberSessionsCellDeclaration = declareCommandCell<
 export const makeRevokeWorkforceMemberSessionsCell = (
   operation: RevokeWorkforceMemberSessions,
 ) =>
-  bindCell(
+  defineOperation(
     revokeWorkforceMemberSessionsCellDeclaration,
     resultOperation(operation),
   );

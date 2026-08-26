@@ -2,7 +2,7 @@ import type { AccessExecute } from "../../../auth/model/access.ts"
 import type { InvitationPreview } from "../../../management/invitations/contracts.ts"
 import { invitationPeerFailure } from "../../../management/invitations/failure.ts"
 import { previewControlInvitationCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 type PreviewExecute = AccessExecute<"previewWorkforceInvitation">
 
@@ -25,7 +25,7 @@ const projectPreview = (value: RawPreview): InvitationPreview => ({
 })
 
 export const makePreviewControlInvitationCell = (access: PreviewExecute) =>
-  bindCell(previewControlInvitationCellDeclaration, async (input) => {
+  defineOperation(previewControlInvitationCellDeclaration, async (input) => {
     const outcome = await access.execute(input.acceptanceToken)
     return outcome.kind === "failure"
       ? { kind: "failure", failure: invitationPeerFailure(outcome.failure) }

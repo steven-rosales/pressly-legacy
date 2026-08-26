@@ -16,7 +16,6 @@
     "@pressly/cli-host": "workspace:*",
     "@pressly/errors": "workspace:*",
     "@pressly/experience-control": "workspace:*",
-    "@pressly/generated": "workspace:*",
     "@pressly/http": "workspace:*",
     "@pressly/ingress-system": "workspace:*",
     "@pressly/postgres": "workspace:*",

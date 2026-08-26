@@ -1,159 +1,84 @@
 # Observability
 
-The operational question is: when the floor reports a failure, can we identify
-the affected release, browser action, API request, and background-processing
-state without reproducing it first?
+Observability is a bounded interpretation of runtime signals. The generic HTTP
+and Worker hosts own Sentry SDK effects; topology supplies the finite catalog
+that maps operation names and job labels to stable IDs.
 
-## Current signal path
+## Composition
 
-| Surface    | Signals                                                                                                                   | Correlation                                                                                                              |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Control    | Sentry browser errors and traces, root error boundary, sanitized navigation/request breadcrumbs and trace URLs            | Management UI errors retain the exact image release SHA; uploaded source maps are removed from the shipped image         |
-| Processor  | Sentry browser errors and traces, root error boundary, sanitized navigation/request breadcrumbs                           | UI errors retain the API `X-Request-Id` or `traceId`; source maps and the exact Git SHA are attached at image build time |
-| API        | Sentry logs, errors, HTTP and database traces, typed metrics, live/readiness endpoints                                    | Request ID, trace ID, route, operation, and the exact deployed Git SHA                                                   |
-| Worker     | Sentry logs, errors, named-job and database traces, typed job/queue metrics, file heartbeat, Sentry Cron check-in         | Job, operation, bounded metric attributes, and the exact deployed Git SHA                                                |
-| Deployment | Sentry start and terminal check-ins plus a bounded GitHub log event                                                       | One check-in ID and the exact selected workflow-run or manual Git SHA                                                    |
-| Host       | Docker healthchecks, infrastructure logs, and a bounded emergency log ring for telemetry initialization or flush failures | Immutable image digests and the same source SHA in release metadata                                                      |
+```text
+owner cell declarations
+  -> topology/observability.ts
+  -> presslyObservabilityCatalog
+  -> hosts/http/src/runtime/observability/sentry.ts
+  -> hosts/jobs/src/runtime/observability/worker-observability.ts
+  -> Sentry
+```
 
-The Processor and Control DSNs are public browser configuration. CI passes
-them as build arguments. The Sentry auth token is different: it is an upload
-credential and is available only as an optional BuildKit secret while source
-maps are uploaded. It is never a build argument, image environment variable,
-or runtime file. Uploaded maps are removed from the image artifact.
+`topology/observability.ts` is handwritten. It combines the generic metric
+descriptors with the Ingress and Production descriptors, adds the selected
+operation IDs, and rejects metric-name collisions at startup.
 
-Production deployment injects the validated source SHA as `SENTRY_RELEASE` for
-API and Worker. Processor and Control compile that same SHA as
-`VITE_SENTRY_RELEASE`. `production` is the Sentry environment for all four.
-Local and offline-smoke builds use distinct environment/release names and do
-not upload source maps.
-Production Compose forces API/Worker Sentry on and API metric export on; a
-missing runtime DSN therefore prevents those services from starting silently
-without their required visibility.
+The public runtime shape is:
 
-When Sentry is enabled—as production requires—API and Worker application logs
-go directly through the Sentry structured-log SDK. They are not mirrored to
-stdout or stderr during normal operation. Disabled local development retains
-the JSON console logger. When initialization fails or an SDK logger call fails
-synchronously, the process writes only that sanitized error/fatal break-glass
-record to stderr; info and warning logs are never mirrored. Asynchronous
-transport outages are not mirrored. Shutdown writes a fixed flush-failure
-record if delivery cannot complete. The Docker JSON-file ring is retained for
-those recovery signals and infrastructure services.
+```ts
+type RuntimeObservabilityCatalog = Readonly<{
+  metrics: Readonly<Record<string, CatalogMetricDefinition>>;
+  operationIdFor: (operation: string) => string | undefined;
+  operationIdForJobLabel: (job: string) => string | undefined;
+}>;
+```
 
-## Signal contracts
+The host receives this catalog as a dependency. It does not import an owner
+manifest, guess operation IDs, or own business metric vocabulary.
 
-`@pressly/observability` owns the business-neutral descriptor algebra, generic
-runtime descriptors, and sink mechanisms. Production and Ingress own their
-metric descriptors. Topology composes and collision-checks those descriptors
-with every selected operation and job in `generated/observability-catalog.ts`,
-exported as `@pressly/generated/observability-catalog`. API and Worker are
-separate Sentry interpreters of that generated catalog. Values outside a finite
-vocabulary become `other`; undeclared attributes are discarded. IDs, arbitrary
-URLs, SQL, parameters, payloads, customer data, and exception messages are
-never metric attributes.
+## Traversal
 
-Named Worker jobs create `worker.job` spans and record every busy or failed
-pass. Successful idle-pass metrics are sampled at most once per minute. Queue
-retry, lease, and dead-letter semantics remain inside the owning job. The
-Orders outbox health sample is one aggregate query per minute, emitting depth
-and oldest-pending-age gauges.
+For an API signal:
 
-Correctness-sensitive unit-of-work boundaries create `db.transaction` spans
-and emit committed, expected-rollback, or failed outcomes with monotonic
-durations. Result-aware wrappers sit outside result-aware database units of
-work, after private rollback signals have become typed failures. Business
-meaning such as replay, no-op, conflict, or invariant rejection remains in the
-owning use case.
+```text
+hosts/http/src/runtime/process.ts
+  -> hosts/http/src/runtime/observability/sentry.ts
+  -> topology/observability.ts
+  -> operation declaration in the owning cell
+```
 
-Sentry Cron observes missed Worker progress only. It does not schedule work or
-provide singleton execution. Polling, leases, fencing, idempotency, retries,
-and reconciliation remain Worker/database responsibilities.
+For a Worker signal:
 
-The deployment workflow sends a DSN-authenticated `in_progress` check-in after
-validating the immutable event SHA and an `ok` or `error` terminal check-in for
-GitHub's authoritative `success`, `failure`, or `cancelled` job status. The
-envelope contains only a random check-in ID, fixed monitor slug, status, exact
-release SHA, `production` environment, duration, and protocol timestamps. It
-does not contain workflow logs, secrets, runtime configuration, payloads,
-customer identifiers, or PII. The sender rejects malformed configuration and
-redirects, uses a five-second timeout, and emits only a fixed error message.
-Delivery is best-effort and cannot change the deployment result.
+```text
+hosts/jobs/src/process-main.ts
+  -> hosts/jobs/src/runtime/observability/worker-observability.ts
+  -> topology/observability.ts
+  -> topology/runtime/jobs/catalog.ts
+  -> owner job surface
+```
 
-## Required Sentry views
+Search the operation's stable ID first. The observability name usually uses the
+underscore form (for example `production.advance_stage`) while the operation
+ID is versioned (for example `production.advance-stage.v1`). Job labels such
+as `order_outbox` resolve through the same catalog.
 
-Create these views before the pilot; repository code emits the signals but
-cannot select notification recipients.
+## Boundaries
 
-1. **Floor reliability** — Processor issues by release, `api.http_requests` by
-   status/route, `api.http_request_duration_seconds`,
-   `api.command_conflicts`, and `product.invariant_failures`.
-2. **Live synchronization** — `api.sse_active_connections`, opened/closed
-   `api.sse_connections`, `api.sse_resyncs`, and `api.sse_feed_failures`.
-3. **Inbound work** — inbox and Orders-outbox pending count/age, named-job pass
-   outcome/duration, processing latency, completed, retried, failed,
-   dead-lettered, recovered-lease, and lost-lease signals.
-4. **Production flow** — plan supersessions, runs started, placement outcomes,
-   queue conflicts, freezes, and overtime confirmations.
-5. **Transactions** — transaction outcome and p95 duration by bounded
-   `operation`, correlated with HTTP or Worker-job traces.
+Hosts may record bounded runtime, method, route, status, outcome, operation,
+and job labels. They must not export customer, order, event, worker, or other
+unbounded business identifiers as metric attributes.
 
-## Initial alert policy
+A metric name or attribute value outside the finite catalog is rejected or
+dropped according to the owning sink's contract. Telemetry must not replace the
+application failure or cause a retry.
 
-- Uptime: alert after two consecutive failures of API readiness, Web health,
-  or Processor health; recover after two successes.
-- Processor and Control: alert on a new or regressed production issue
-  immediately; alert on a sustained browser error spike over five minutes.
-- API: critical on any sustained 5xx increase; warning on p95 request duration
-  above two seconds for ten minutes. Do not page on isolated expected 409s.
-- SSE: critical on `api.sse_feed_failures >= 1` in five minutes; warning when
-  resyncs remain elevated for ten minutes.
-- Worker: use the exact Cron, backlog, retry, dead-letter, lease-loss, and loop
-  rules in `hosts/jobs/README.md`.
-- Deployment: alert immediately on an `error` check-in and after a 30-minute
-  incomplete check-in; recover after one successful deployment. GitHub remains
-  authoritative when Sentry delivery itself is unavailable.
-- Security: route authentication failures and sustained rate-limit or login
-  abuse to the security destination, not the floor-operations channel.
+## Verification
 
-Tune thresholds from pilot traffic after one week. Loosening an alert requires
-evidence that it is noisy; disabling the underlying signal does not.
+The catalog's identity and collision invariants are tested in
+`verification/topology/topology.test.ts`. Host sink tests inject the same
+catalog and verify metric filtering, operation mapping, and failure isolation.
 
-## Floor incident runbook
+Run:
 
-1. Record the screen, command, time, location/run, and displayed error
-   reference. Do not include customer payloads.
-2. Search Sentry by reference, then bind the browser event to its release SHA
-   and API request/trace. Check whether the issue began with that release.
-3. Check API readiness and the Floor reliability/Live synchronization views.
-   If intake is involved, also check Worker heartbeat, queue age, and dead
-   letters.
-4. Query Sentry Logs for the affected runtime, release, operation, and time,
-   then pivot from the log to its trace and issue. Do not search by customer
-   payload or add customer data to the query.
-5. Use `docker compose logs --since <time> api worker` only when Sentry itself
-   is unavailable. It may contain initialization failures, synchronous
-   error/fatal writer fallbacks, or final flush failures; it is not a complete
-   mirror of an asynchronous Sentry outage. Continue with host/network
-   diagnostics rather than treating Docker as the primary log store.
-6. Before retrying a physical command, reload the authoritative board and
-   verify its state. Command idempotency protects retries; operator observation
-   protects the physical floor from repeating completed work.
-7. Roll back only for a release regression whose migrated database remains
-   compatible. Use the recovery procedure for data damage or host loss.
-8. Record cause, mitigation, affected release, and missing signal. Add the
-   missing signal or runbook step before closing the incident.
-
-Staging must prove source-map symbolication, reference-ID lookup, one API
-alert, one SSE failure alert, the Worker missed-Cron alert, the deployment
-failure alert, and recovery notifications for each before production
-notifications are considered configured.
-
-## Related Runbooks
-
-- [Local LPMS production-run simulation](./runbooks/lpms-local-production-run.md)
-  exercises the synthetic floor workflow without resetting shared development
-  data.
-- [Cents webhook local proof](./runbooks/cents-webhook.md) isolates signed ingress
-  and duplicate-delivery behavior.
-- [Production migrations](./ops/production-migrations.md) defines database
-  release and recovery constraints.
+```bash
+pnpm --filter @pressly/observability test
+pnpm --filter @pressly/http-host test
+pnpm --filter @pressly/jobs-host test
+pnpm --filter @pressly/topology-verification test
+```

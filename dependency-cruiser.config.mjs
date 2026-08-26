@@ -3,10 +3,7 @@
 import { fileURLToPath } from 'node:url';
 
 const dependencyCruiserSourceConfig = fileURLToPath(
-  new URL(
-    './tooling/typescript/dependency-cruiser.generated.json',
-    import.meta.url,
-  ),
+  new URL('./tooling/typescript/dependency-cruiser.json', import.meta.url),
 );
 
 const systemNames = [
@@ -73,21 +70,21 @@ export default {
         'Architecture edges must target checked source, never stale workspace build output.',
       from: {},
       to: {
-        path: '^(?:hosts|systems|experiences|platform|topology|generated|verification)/(?:dist|dist-runtime)(?:/|$)',
+        path: '^(?:hosts|systems|experiences|platform|topology|verification)/(?:dist|dist-runtime)(?:/|$)',
       },
     },
     {
       name: 'hosts-are-domain-free',
       severity: 'error',
       from: { path: '^hosts/', pathNot: testSourcePattern },
-      to: { path: '^(?:systems|experiences|topology|verification)/' },
+      to: { path: '^(?:systems|experiences|verification)/' },
     },
     {
       name: 'platform-has-no-business-knowledge',
       severity: 'error',
       from: { path: '^platform/' },
       to: {
-        path: '^(?:systems|experiences|hosts|topology|generated|verification)/',
+        path: '^(?:systems|experiences|hosts|topology|verification)/',
       },
     },
     {
@@ -95,7 +92,7 @@ export default {
       severity: 'error',
       from: { path: '^systems/' },
       to: {
-        path: '^(?:hosts|experiences|topology|generated|verification)/',
+        path: '^(?:hosts|experiences|topology|verification)/',
       },
     },
     {
@@ -111,25 +108,13 @@ export default {
       name: 'experiences-do-not-depend-on-outer-roots',
       severity: 'error',
       from: { path: '^experiences/', pathNot: testSourcePattern },
-      to: { path: '^(?:hosts|topology|generated|verification)/' },
-    },
-    {
-      name: 'generated-code-does-not-depend-on-outer-runtime-roots',
-      severity: 'error',
-      from: { path: '^generated/', pathNot: '^generated/runtime/' },
       to: { path: '^(?:hosts|topology|verification)/' },
-    },
-    {
-      name: 'generated-runtime-does-not-depend-on-hosts-or-verification',
-      severity: 'error',
-      from: { path: '^generated/runtime/' },
-      to: { path: '^(?:hosts|verification)/' },
     },
     {
       name: 'production-code-does-not-depend-on-verification',
       severity: 'error',
       from: {
-        path: '^(?:hosts|systems|experiences|platform|topology|generated)/',
+        path: '^(?:hosts|systems|experiences|platform|topology)/',
       },
       to: { path: '^verification/' },
     },
@@ -147,7 +132,7 @@ export default {
       name: 'production-source-does-not-import-tests',
       severity: 'error',
       from: {
-        path: '^(?:hosts|systems|experiences|platform|topology|generated)/',
+        path: '^(?:hosts|systems|experiences|platform|topology)/',
         pathNot: testSourcePattern,
       },
       to: {

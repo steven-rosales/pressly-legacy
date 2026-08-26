@@ -44,9 +44,6 @@
       "path": "../../experiences/processor/tsconfig.json"
     },
     {
-      "path": "../../generated/tsconfig.json"
-    },
-    {
       "path": "../../hosts/http/tsconfig.json"
     },
     {

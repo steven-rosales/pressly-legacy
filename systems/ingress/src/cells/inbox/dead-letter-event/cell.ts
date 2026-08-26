@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import type { WebhookEventCompletion } from '../../../model/inbox.ts';
 import { deadLetterEventContract } from './contract.ts';
 import { makeExecuteDeadLetterEvent } from './execute.ts';
@@ -9,11 +9,12 @@ import {
   type DeadLetterEventRepository,
 } from './types.ts';
 
-export const deadLetterEventCellDeclaration = declareCommandCell<
+export const deadLetterEventCellDeclaration = defineOperation<
   DeadLetterEventCommand,
   WebhookEventCompletion,
   DeadLetterEventExpectedFailure
 >({
+  kind: 'command',
   id: deadLetterEventOperationId,
   authentication: 'none',
   contract: deadLetterEventContract,
@@ -31,4 +32,7 @@ export const deadLetterEventCellDeclaration = declareCommandCell<
 });
 
 export const makeDeadLetterEventCell = (repo: DeadLetterEventRepository) =>
-  bindCell(deadLetterEventCellDeclaration, makeExecuteDeadLetterEvent(repo));
+  defineOperation(
+    deadLetterEventCellDeclaration,
+    makeExecuteDeadLetterEvent(repo),
+  );

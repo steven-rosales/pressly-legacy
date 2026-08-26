@@ -83,6 +83,7 @@ out
 # Nuxt.js build / generate output
 .nuxt
 dist
+dist-runtime
 .output
 
 # Gatsby files
@@ -157,5 +158,6 @@ vite.config.ts.timestamp-*
 # Local browser and visual-QA artifacts
 .artifacts/
 .playwright-cli/
+.playwright-mcp
 playwright-report/
 test-results/

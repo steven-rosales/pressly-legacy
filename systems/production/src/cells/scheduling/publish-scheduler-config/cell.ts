@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { publishSchedulerConfigContract } from './contract.ts';
 import { publishSchedulerConfigOperationId } from './decide.ts';
 import {
@@ -12,11 +12,12 @@ import type {
   SchedulerConfig,
 } from './types.ts';
 
-export const publishSchedulerConfigCellDeclaration = declareCommandCell<
+export const publishSchedulerConfigCellDeclaration = defineOperation<
   PublishSchedulerConfigCommand,
   SchedulerConfig,
   PublishSchedulerConfigExpectedFailure
 >({
+  kind: 'command',
   id: publishSchedulerConfigOperationId,
   contract: publishSchedulerConfigContract,
   authorization: {
@@ -39,7 +40,7 @@ export const publishSchedulerConfigCellDeclaration = declareCommandCell<
 export const makePublishSchedulerConfigCell = <StoredWorkEvent>(
   deps: PublishSchedulerConfigDependencies<StoredWorkEvent>,
 ) =>
-  bindCell(
+  defineOperation(
     publishSchedulerConfigCellDeclaration,
     makeExecutePublishSchedulerConfig(deps),
   );

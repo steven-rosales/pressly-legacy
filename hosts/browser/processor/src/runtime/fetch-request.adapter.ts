@@ -14,7 +14,7 @@ import {
   type RequestFailureKind,
   type RequestInput,
   type RequestPort,
-} from '@pressly/generated-runtime/browser/processor';
+} from '@pressly/topology/browser/processor';
 
 export type RequestFailureContext = Readonly<{
   method: string;

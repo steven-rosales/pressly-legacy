@@ -1,4 +1,4 @@
-import { bindCell, declareQueryCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { resolveLocationAncestryContract } from './contract.ts';
 import type { ResolveLocationAncestry } from './resolve-location-ancestry.usecase.ts';
 import {
@@ -8,11 +8,12 @@ import {
   type OperationOutput,
 } from '../../../model/boundary/cell-contract.ts';
 
-export const resolveLocationAncestryCellDeclaration = declareQueryCell<
+export const resolveLocationAncestryCellDeclaration = defineOperation<
   OperationInput<ResolveLocationAncestry>,
   OperationOutput<ResolveLocationAncestry>,
   OperationFailure<ResolveLocationAncestry>
 >({
+  kind: 'query',
   id: 'access.resolve-location-ancestry.v1',
   authentication: 'required',
   contract: resolveLocationAncestryContract,
@@ -24,4 +25,7 @@ export const resolveLocationAncestryCellDeclaration = declareQueryCell<
 export const makeResolveLocationAncestryCell = (
   operation: ResolveLocationAncestry,
 ) =>
-  bindCell(resolveLocationAncestryCellDeclaration, successOperation(operation));
+  defineOperation(
+    resolveLocationAncestryCellDeclaration,
+    successOperation(operation),
+  );

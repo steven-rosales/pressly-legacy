@@ -2,7 +2,7 @@ import type { OrderManagementExecute } from "../../../management/model/dependenc
 import type { OrderProjection } from "../../../management/orders/contracts.ts"
 import { orderFailure } from "../../../management/model/failure.ts"
 import { getControlOrderCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 const projectOrder = (order: {
   orderId: string
@@ -41,7 +41,7 @@ const projectOrder = (order: {
 export const makeGetControlOrderCell = (
   orders: OrderManagementExecute<"getCanonicalOrder">,
 ) =>
-  bindCell(getControlOrderCellDeclaration, async (input) => {
+  defineOperation(getControlOrderCellDeclaration, async (input) => {
     const locationIds = input.context.access.locations.map(
       (location) => location.id,
     )

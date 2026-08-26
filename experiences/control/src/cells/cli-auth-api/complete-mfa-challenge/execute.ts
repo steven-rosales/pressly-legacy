@@ -5,7 +5,7 @@ import {
 } from "../../../auth/model/cli-auth-api-session.ts"
 import type { CliAuthApiChallengeInput } from "../../../auth/model/cli-auth-api.ts"
 import { controlCliAuthApiCompleteMfaChallengeCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 export type ControlCliAuthApiCompleteMfaChallengeDependencies =
   CliAuthApiSessionDependencies &
@@ -23,7 +23,7 @@ const accessInput = (
 export const makeControlCliAuthApiCompleteMfaChallengeCell = (
   dependencies: ControlCliAuthApiCompleteMfaChallengeDependencies,
 ) =>
-  bindCell(
+  defineOperation(
     controlCliAuthApiCompleteMfaChallengeCellDeclaration,
     async (input) => {
       const authenticated = await dependencies.completeMfaChallenge.execute(

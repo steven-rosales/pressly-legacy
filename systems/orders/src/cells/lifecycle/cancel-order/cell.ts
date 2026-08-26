@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import type { PostgresDatabase } from '@pressly/postgres/client';
 import type { Clock } from '@pressly/time';
 import type { OrderMutationResult } from '../../../model/canonical-order/model.ts';
@@ -15,11 +15,12 @@ import {
   type CancelOrderExpectedFailure,
 } from './types.ts';
 
-export const cancelOrderCellDeclaration = declareCommandCell<
+export const cancelOrderCellDeclaration = defineOperation<
   CancelOrderCommand,
   OrderMutationResult,
   CancelOrderExpectedFailure
 >({
+  kind: 'command',
   id: cancelOrderOperationId,
   authentication: 'required',
   contract: cancelOrderContract,
@@ -46,7 +47,7 @@ export const makeCancelOrderCell = (dependencies: {
   schema: OrdersSchema;
   clock: Clock;
 }) =>
-  bindCell(
+  defineOperation(
     cancelOrderCellDeclaration,
     makeExecuteCancelOrder({
       writer: makeCancelOrderPostgresWriter(dependencies),

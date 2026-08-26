@@ -1,8 +1,9 @@
 import { recoverySurface } from "./cli.ts"
 import { recoveryContract } from "./contract.ts"
-import { declareCommandCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
-export const adminCliAuthMfaRecoveryCodesCellDeclaration = declareCommandCell({
+export const adminCliAuthMfaRecoveryCodesCellDeclaration = defineOperation({
+  kind: "command",
   id: "control.cli-auth-mfa-recovery-codes.v1",
   authentication: "none",
   contract: recoveryContract,

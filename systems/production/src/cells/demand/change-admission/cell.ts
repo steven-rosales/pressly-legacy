@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { changeAdmissionContract } from './contract.ts';
 import { changeAdmissionOperationId } from './decide.ts';
 import {
@@ -12,11 +12,12 @@ import type {
   ChangeAdmissionResult,
 } from './types.ts';
 
-export const changeAdmissionCellDeclaration = declareCommandCell<
+export const changeAdmissionCellDeclaration = defineOperation<
   ChangeAdmissionCommand,
   ChangeAdmissionResult,
   ChangeAdmissionExpectedFailure
 >({
+  kind: 'command',
   id: changeAdmissionOperationId,
   contract: changeAdmissionContract,
   authorization: {
@@ -42,7 +43,7 @@ export const changeAdmissionCellDeclaration = declareCommandCell<
 export const makeChangeAdmissionCell = <StoredWorkEvent>(
   dependencies: ChangeAdmissionDependencies<StoredWorkEvent>,
 ) =>
-  bindCell(
+  defineOperation(
     changeAdmissionCellDeclaration,
     makeExecuteChangeAdmission(dependencies),
   );

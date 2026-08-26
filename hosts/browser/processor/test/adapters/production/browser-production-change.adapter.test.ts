@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { makeBrowserProductionChangeAdapter } from '../../../src/runtime/browser-production-change.adapter.ts';
 import { makeDescribeSubscribeChangesEventSource } from '@pressly/experience-processor/testing/browser-subscribe-changes';
-import { productionSubscribeChangesV1 } from '@pressly/generated/clients/processor';
+import { productionSubscribeChangesV1 } from '@pressly/topology/browser-operations';
 
 const describeSubscription = makeDescribeSubscribeChangesEventSource({
   operation: productionSubscribeChangesV1,

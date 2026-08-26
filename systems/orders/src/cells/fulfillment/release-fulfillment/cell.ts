@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import type { PostgresDatabase } from '@pressly/postgres/client';
 import type { Clock } from '@pressly/time';
 import type { OrderMutationResult } from '../../../model/canonical-order/model.ts';
@@ -15,11 +15,12 @@ import {
   type ReleaseFulfillmentExpectedFailure,
 } from './types.ts';
 
-export const releaseFulfillmentCellDeclaration = declareCommandCell<
+export const releaseFulfillmentCellDeclaration = defineOperation<
   ReleaseFulfillmentCommand,
   OrderMutationResult,
   ReleaseFulfillmentExpectedFailure
 >({
+  kind: 'command',
   id: releaseFulfillmentOperationId,
   authentication: 'required',
   contract: releaseFulfillmentContract,
@@ -47,7 +48,7 @@ export const makeReleaseFulfillmentCell = (dependencies: {
   schema: OrdersSchema;
   clock: Clock;
 }) =>
-  bindCell(
+  defineOperation(
     releaseFulfillmentCellDeclaration,
     makeExecuteReleaseFulfillment({
       writer: makeReleaseFulfillmentPostgresWriter(dependencies),

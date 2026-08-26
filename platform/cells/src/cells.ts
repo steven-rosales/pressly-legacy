@@ -237,59 +237,120 @@ const freezeDeclaration = <Kind extends FiniteCellKind, Input, Output, Failure>(
   });
 };
 
-export const bindCell = <Kind extends FiniteCellKind, Input, Output, Failure>(
+export function defineOperation<Input, Output, Failure>(
+  definition: CommandCellInput<Input, Output, Failure> &
+    Readonly<{ kind: 'command' }>,
+): CellDefinition<'command', Input, Output, Failure>;
+export function defineOperation<Input, Output, Failure>(
+  definition: QueryCellInput<Input, Output, Failure> &
+    Readonly<{ kind: 'query' }>,
+): CellDefinition<'query', Input, Output, Failure>;
+export function defineOperation<Input, Output, Failure>(
+  definition: ReactionCellInput<Input, Output, Failure> &
+    Readonly<{ kind: 'reaction' }>,
+): CellDefinition<'reaction', Input, Output, Failure>;
+export function defineOperation<Input, Output, Failure>(
+  definition: ProcessCellInput<Input, Output, Failure> &
+    Readonly<{ kind: 'process' }>,
+): CellDefinition<'process', Input, Output, Failure>;
+export function defineOperation<Input, Output, Event, Failure>(
+  definition: SubscriptionCellInput<Input, Output, Event, Failure> &
+    Readonly<{ kind: 'subscription' }>,
+): SubscriptionCellDefinition<Input, Output, Event, Failure>;
+export function defineOperation<Input, Output, Failure>(
+  definition: CommandCellDeclarationInput<Input, Output, Failure> &
+    Readonly<{ kind: 'command' }>,
+): CellDeclaration<'command', Input, Output, Failure>;
+export function defineOperation<Input, Output, Failure>(
+  definition: QueryCellDeclarationInput<Input, Output, Failure> &
+    Readonly<{ kind: 'query' }>,
+): CellDeclaration<'query', Input, Output, Failure>;
+export function defineOperation<Input, Output, Failure>(
+  definition: ReactionCellDeclarationInput<Input, Output, Failure> &
+    Readonly<{ kind: 'reaction' }>,
+): CellDeclaration<'reaction', Input, Output, Failure>;
+export function defineOperation<Input, Output, Failure>(
+  definition: ProcessCellDeclarationInput<Input, Output, Failure> &
+    Readonly<{ kind: 'process' }>,
+): CellDeclaration<'process', Input, Output, Failure>;
+export function defineOperation<Input, Output, Event, Failure>(
+  definition: SubscriptionCellDeclarationInput<Input, Output, Event, Failure> &
+    Readonly<{ kind: 'subscription' }>,
+): SubscriptionCellDeclaration<Input, Output, Event, Failure>;
+export function defineOperation<
+  Kind extends FiniteCellKind,
+  Input,
+  Output,
+  Failure,
+>(
   declaration: CellDeclaration<Kind, Input, Output, Failure>,
   execute: (input: Input) => Promise<CellOutcome<Output, Failure>>,
-): CellDefinition<Kind, Input, Output, Failure> =>
-  Object.freeze({ ...declaration, execute });
+): CellDefinition<Kind, Input, Output, Failure>;
+export function defineOperation<Input, Output, Event, Failure>(
+  declaration: SubscriptionCellDeclaration<Input, Output, Event, Failure>,
+  open: (
+    input: Input,
+  ) => Promise<CellOutcome<SubscriptionSession<Output, Event>, Failure>>,
+): SubscriptionCellDefinition<Input, Output, Event, Failure>;
+export function defineOperation(
+  definition: unknown,
+  implementation?: unknown,
+): unknown {
+  const operation = definition as {
+    readonly kind: CellKind;
+    readonly execute?: unknown;
+    readonly open?: unknown;
+  };
+  const raw = definition as Record<string, unknown>;
 
-export const declareCommandCell = <Input, Output, Failure>(
-  definition: CommandCellDeclarationInput<Input, Output, Failure>,
-): CellDeclaration<'command', Input, Output, Failure> =>
-  freezeDeclaration('command', definition);
+  if (implementation !== undefined) {
+    return operation.kind === 'subscription'
+      ? Object.freeze({ ...raw, open: implementation })
+      : Object.freeze({ ...raw, execute: implementation });
+  }
 
-export const declareQueryCell = <Input, Output, Failure>(
-  definition: QueryCellDeclarationInput<Input, Output, Failure>,
-): CellDeclaration<'query', Input, Output, Failure> =>
-  freezeDeclaration('query', definition);
+  const {
+    execute: embeddedExecute,
+    open: embeddedOpen,
+    ...rawDeclaration
+  } = raw;
+  const effect = implementation ?? embeddedOpen ?? embeddedExecute;
+  const declaration = effect === undefined ? definition : rawDeclaration;
 
-export const declareReactionCell = <Input, Output, Failure>(
-  definition: ReactionCellDeclarationInput<Input, Output, Failure>,
-): CellDeclaration<'reaction', Input, Output, Failure> =>
-  freezeDeclaration('reaction', definition);
+  if (operation.kind === 'subscription') {
+    const frozen = freezeSubscriptionDeclaration(
+      declaration as SubscriptionCellDeclarationInput<
+        unknown,
+        unknown,
+        unknown,
+        unknown
+      >,
+    );
+    return effect === undefined
+      ? frozen
+      : Object.freeze({
+          ...frozen,
+          open: effect as (
+            input: unknown,
+          ) => Promise<
+            CellOutcome<SubscriptionSession<unknown, unknown>, unknown>
+          >,
+        });
+  }
 
-export const declareProcessCell = <Input, Output, Failure>(
-  definition: ProcessCellDeclarationInput<Input, Output, Failure>,
-): CellDeclaration<'process', Input, Output, Failure> =>
-  freezeDeclaration('process', definition);
-
-export const defineCommandCell = <Input, Output, Failure>(
-  definition: CommandCellInput<Input, Output, Failure>,
-): CellDefinition<'command', Input, Output, Failure> => {
-  const { execute, ...declaration } = definition;
-  return bindCell(declareCommandCell(declaration), execute);
-};
-
-export const defineQueryCell = <Input, Output, Failure>(
-  definition: QueryCellInput<Input, Output, Failure>,
-): CellDefinition<'query', Input, Output, Failure> => {
-  const { execute, ...declaration } = definition;
-  return bindCell(declareQueryCell(declaration), execute);
-};
-
-export const defineReactionCell = <Input, Output, Failure>(
-  definition: ReactionCellInput<Input, Output, Failure>,
-): CellDefinition<'reaction', Input, Output, Failure> => {
-  const { execute, ...declaration } = definition;
-  return bindCell(declareReactionCell(declaration), execute);
-};
-
-export const defineProcessCell = <Input, Output, Failure>(
-  definition: ProcessCellInput<Input, Output, Failure>,
-): CellDefinition<'process', Input, Output, Failure> => {
-  const { execute, ...declaration } = definition;
-  return bindCell(declareProcessCell(declaration), execute);
-};
+  const frozen = freezeDeclaration(
+    operation.kind,
+    declaration as CommonDeclarationInput<unknown, unknown, unknown>,
+  );
+  return effect === undefined
+    ? frozen
+    : Object.freeze({
+        ...frozen,
+        execute: effect as (
+          input: unknown,
+        ) => Promise<CellOutcome<unknown, unknown>>,
+      });
+}
 
 export type SubscriptionObserver<Event> = Readonly<{
   next: (event: Event) => void;
@@ -361,7 +422,7 @@ export type SubscriptionCellInput<Input, Output, Event, Failure> =
       ) => Promise<CellOutcome<SubscriptionSession<Output, Event>, Failure>>;
     }>;
 
-export const declareSubscriptionCell = <Input, Output, Event, Failure>(
+const freezeSubscriptionDeclaration = <Input, Output, Event, Failure>(
   definition: SubscriptionCellDeclarationInput<Input, Output, Event, Failure>,
 ): SubscriptionCellDeclaration<Input, Output, Event, Failure> => {
   const authorization = definition.authorization ?? null;
@@ -383,19 +444,4 @@ export const declareSubscriptionCell = <Input, Output, Event, Failure>(
     timeoutMs: null,
     observability: Object.freeze({ ...definition.observability }),
   });
-};
-
-export const bindSubscriptionCell = <Input, Output, Event, Failure>(
-  declaration: SubscriptionCellDeclaration<Input, Output, Event, Failure>,
-  open: (
-    input: Input,
-  ) => Promise<CellOutcome<SubscriptionSession<Output, Event>, Failure>>,
-): SubscriptionCellDefinition<Input, Output, Event, Failure> =>
-  Object.freeze({ ...declaration, open });
-
-export const defineSubscriptionCell = <Input, Output, Event, Failure>(
-  definition: SubscriptionCellInput<Input, Output, Event, Failure>,
-): SubscriptionCellDefinition<Input, Output, Event, Failure> => {
-  const { open, ...declaration } = definition;
-  return bindSubscriptionCell(declareSubscriptionCell(declaration), open);
 };

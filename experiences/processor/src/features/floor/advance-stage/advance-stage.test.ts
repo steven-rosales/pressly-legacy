@@ -36,7 +36,7 @@ const result: AdvanceProductionStageResult = {
 }
 
 describe("Processor advance-stage experience", () => {
-  it("maps typed commands through the generated structural route and canonical result schema", async () => {
+  it("maps typed commands through the declared structural route and canonical result schema", async () => {
     const request = vi
       .fn<AdvanceStageRequestTransport>()
       .mockResolvedValue(result)

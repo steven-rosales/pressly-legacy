@@ -1,4 +1,4 @@
-import { bindCell, declareQueryCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import type { ProductionOrderBacklogPreview } from '../../../read-models/production-order-backlog/contract.ts';
 import type { ProductionOrderBacklogScope } from '../../../read-models/production-order-backlog/model.ts';
 import { previewOrderBacklogContract } from './contract.ts';
@@ -11,11 +11,12 @@ import {
   type PreviewOrderBacklogExpectedFailure,
 } from './types.ts';
 
-export const previewOrderBacklogCellDeclaration = declareQueryCell<
+export const previewOrderBacklogCellDeclaration = defineOperation<
   ProductionOrderBacklogScope,
   ProductionOrderBacklogPreview,
   PreviewOrderBacklogExpectedFailure
 >({
+  kind: 'query',
   id: previewOrderBacklogOperationId,
   authentication: 'none',
   contract: previewOrderBacklogContract,
@@ -27,7 +28,7 @@ export const previewOrderBacklogCellDeclaration = declareQueryCell<
 export const makePreviewOrderBacklogCell = (
   dependencies: PreviewOrderBacklogDependencies,
 ) =>
-  bindCell(
+  defineOperation(
     previewOrderBacklogCellDeclaration,
     makeExecutePreviewOrderBacklog(dependencies),
   );

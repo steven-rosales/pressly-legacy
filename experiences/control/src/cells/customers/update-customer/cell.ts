@@ -5,18 +5,19 @@ import type {
 import type { ControlCustomerFailure } from "../../../management/model/failure.ts"
 import { updateControlCustomerContract } from "./contract.ts"
 import { updateSurface } from "./http.ts"
-import { declareCommandCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 export const writeAuthorization = {
   capability: "customers:write",
   timing: "before-input",
 } as const
 
-export const updateControlCustomerCellDeclaration = declareCommandCell<
+export const updateControlCustomerCellDeclaration = defineOperation<
   UpdateControlCustomerInput,
   CustomerMutation,
   ControlCustomerFailure
 >({
+  kind: "command",
   id: "control.update-customer.v1",
   contract: updateControlCustomerContract,
   authorization: writeAuthorization,

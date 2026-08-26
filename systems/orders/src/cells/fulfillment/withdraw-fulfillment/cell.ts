@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import type { PostgresDatabase } from '@pressly/postgres/client';
 import type { Clock } from '@pressly/time';
 import type { OrderMutationResult } from '../../../model/canonical-order/model.ts';
@@ -15,11 +15,12 @@ import {
   type WithdrawFulfillmentExpectedFailure,
 } from './types.ts';
 
-export const withdrawFulfillmentCellDeclaration = declareCommandCell<
+export const withdrawFulfillmentCellDeclaration = defineOperation<
   WithdrawFulfillmentCommand,
   OrderMutationResult,
   WithdrawFulfillmentExpectedFailure
 >({
+  kind: 'command',
   id: withdrawFulfillmentOperationId,
   authentication: 'required',
   contract: withdrawFulfillmentContract,
@@ -47,7 +48,7 @@ export const makeWithdrawFulfillmentCell = (dependencies: {
   schema: OrdersSchema;
   clock: Clock;
 }) =>
-  bindCell(
+  defineOperation(
     withdrawFulfillmentCellDeclaration,
     makeExecuteWithdrawFulfillment({
       writer: makeWithdrawFulfillmentPostgresWriter(dependencies),

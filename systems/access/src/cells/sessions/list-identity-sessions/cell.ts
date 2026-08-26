@@ -1,4 +1,4 @@
-import { bindCell, declareQueryCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { listIdentitySessionsContract } from './contract.ts';
 import type { ListIdentitySessions } from './list-identity-sessions.usecase.ts';
 import {
@@ -8,11 +8,12 @@ import {
   type OperationOutput,
 } from '../../../model/boundary/cell-contract.ts';
 
-export const listIdentitySessionsCellDeclaration = declareQueryCell<
+export const listIdentitySessionsCellDeclaration = defineOperation<
   OperationInput<ListIdentitySessions>,
   OperationOutput<ListIdentitySessions>,
   OperationFailure<ListIdentitySessions>
 >({
+  kind: 'query',
   id: 'access.list-identity-sessions.v1',
   authentication: 'required',
   contract: listIdentitySessionsContract,
@@ -22,4 +23,7 @@ export const listIdentitySessionsCellDeclaration = declareQueryCell<
 });
 
 export const makeListIdentitySessionsCell = (operation: ListIdentitySessions) =>
-  bindCell(listIdentitySessionsCellDeclaration, successOperation(operation));
+  defineOperation(
+    listIdentitySessionsCellDeclaration,
+    successOperation(operation),
+  );

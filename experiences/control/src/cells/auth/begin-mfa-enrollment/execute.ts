@@ -1,7 +1,7 @@
 import type { AccessExecute, AccessInput } from "../../../auth/model/access.ts"
 import type { BeginMfaInput } from "../../../auth/model/schemas.ts"
 import { controlBeginMfaEnrollmentCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 const beginAccessInput = (
   input: BeginMfaInput,
@@ -14,6 +14,6 @@ const beginAccessInput = (
 export const makeControlBeginMfaEnrollmentCell = (
   access: AccessExecute<"beginMfaEnrollment">,
 ) =>
-  bindCell(controlBeginMfaEnrollmentCellDeclaration, (input) =>
+  defineOperation(controlBeginMfaEnrollmentCellDeclaration, (input) =>
     access.execute(beginAccessInput(input)),
   )

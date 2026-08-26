@@ -1,8 +1,9 @@
 import { loginSurface } from "./cli.ts"
 import { loginContract } from "./contract.ts"
-import { declareCommandCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
-export const adminCliAuthLoginCellDeclaration = declareCommandCell({
+export const adminCliAuthLoginCellDeclaration = defineOperation({
+  kind: "command",
   id: "control.cli-auth-login.v1",
   authentication: "none",
   contract: loginContract,

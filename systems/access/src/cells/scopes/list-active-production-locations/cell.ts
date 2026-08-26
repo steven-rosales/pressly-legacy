@@ -1,4 +1,4 @@
-import { bindCell, declareQueryCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import {
   successOperation,
   type OperationFailure,
@@ -8,11 +8,12 @@ import {
 import { listActiveProductionLocationsContract } from './contract.ts';
 import type { ListActiveProductionLocations } from './list-active-production-locations.usecase.ts';
 
-export const listActiveProductionLocationsCellDeclaration = declareQueryCell<
+export const listActiveProductionLocationsCellDeclaration = defineOperation<
   OperationInput<ListActiveProductionLocations>,
   OperationOutput<ListActiveProductionLocations>,
   OperationFailure<ListActiveProductionLocations>
 >({
+  kind: 'query',
   id: 'access.list-active-production-locations.v1',
   authentication: 'required',
   contract: listActiveProductionLocationsContract,
@@ -24,7 +25,7 @@ export const listActiveProductionLocationsCellDeclaration = declareQueryCell<
 export const makeListActiveProductionLocationsCell = (
   operation: ListActiveProductionLocations,
 ) =>
-  bindCell(
+  defineOperation(
     listActiveProductionLocationsCellDeclaration,
     successOperation(operation),
   );

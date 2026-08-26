@@ -1,4 +1,4 @@
-import { customerWeb } from '@pressly/generated-runtime/browser/customer';
+import { customerWeb } from '@pressly/topology/browser/customer';
 import { Lexend_Deca } from 'next/font/google';
 import type { ReactNode } from 'react';
 import { WebCoreProvider } from '@/composition/web-core-context';

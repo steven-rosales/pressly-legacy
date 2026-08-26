@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import type { AccessExecute } from '../../../auth/model/access.ts';
 import {
   type IdentityMutationInput,
@@ -9,7 +9,8 @@ import { makeExecuteCustomerRegenerateMfaRecoveryCodes } from './execute.ts';
 import { customerRegenerateMfaRecoveryCodesHttpSurface } from './http.ts';
 
 export const customerRegenerateMfaRecoveryCodesCellDeclaration =
-  declareCommandCell<IdentityMutationInput, RecoveryCodes, never>({
+  defineOperation<IdentityMutationInput, RecoveryCodes, never>({
+    kind: 'command',
     id: 'customer.regenerate-mfa-recovery-codes.v1',
     contract: customerRegenerateMfaRecoveryCodesContract,
     authorization: {
@@ -28,7 +29,7 @@ export const customerRegenerateMfaRecoveryCodesCellDeclaration =
 export const makeCustomerRegenerateMfaRecoveryCodesCell = (
   access: AccessExecute<'regenerateMfaRecoveryCodes'>,
 ) =>
-  bindCell(
+  defineOperation(
     customerRegenerateMfaRecoveryCodesCellDeclaration,
     makeExecuteCustomerRegenerateMfaRecoveryCodes(access),
   );

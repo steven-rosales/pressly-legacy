@@ -2,7 +2,7 @@ import { createHmac } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { normalizeUnknownError } from '@pressly/errors/app-error';
-import { makeHttpCatalogFromOwners } from '@pressly/generated/http-catalog';
+import { makeHttpCatalogFromOwners } from '@pressly/topology/http';
 import { mountHttpBoundaryCatalog } from '@pressly/http-host';
 import express, { type ErrorRequestHandler, type Express } from 'express';
 import { afterEach, describe, expect, it } from 'vitest';

@@ -1,4 +1,4 @@
-import { bindCell, declareQueryCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import type {
   PricingChangeCommand,
   PricingChangePlan,
@@ -12,11 +12,12 @@ import {
   type PlanPricingChangeExpectedFailure,
 } from './types.ts';
 
-export const planPricingChangeCellDeclaration = declareQueryCell<
+export const planPricingChangeCellDeclaration = defineOperation<
   PricingChangeCommand,
   PricingChangePlan,
   PlanPricingChangeExpectedFailure
 >({
+  kind: 'query',
   id: planPricingChangeOperationId,
   contract: planPricingChangeContract,
   authorization: {
@@ -31,7 +32,7 @@ export const planPricingChangeCellDeclaration = declareQueryCell<
 export const makePlanPricingChangeCell = (
   dependencies: PlanPricingChangeDependencies,
 ) =>
-  bindCell(
+  defineOperation(
     planPricingChangeCellDeclaration,
     makeExecutePlanPricingChange(dependencies),
   );

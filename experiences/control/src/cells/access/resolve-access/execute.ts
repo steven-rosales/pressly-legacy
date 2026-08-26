@@ -1,4 +1,4 @@
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 import type { AccessExecute } from "../../../auth/model/access.ts"
 import type { ControlAccess } from "../../../auth/model/schemas.ts"
 import type { ResolveControlAccessInput } from "./contract.ts"
@@ -37,7 +37,7 @@ const capabilitiesFor = (
 export const makeResolveControlAccessCell = (
   dependencies: ResolveControlAccessDependencies,
 ) =>
-  bindCell(resolveControlAccessCellDeclaration, async (input) => {
+  defineOperation(resolveControlAccessCellDeclaration, async (input) => {
     const listed = await dependencies.listEffectiveAccessGrants.execute(
       input.identityId,
     )

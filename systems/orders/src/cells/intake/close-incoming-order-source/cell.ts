@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { closeIncomingOrderSourceContract } from './contract.ts';
 import {
   closeIncomingOrderSourceCommandHash,
@@ -13,11 +13,12 @@ import {
   type CloseIncomingOrderSourceResult,
 } from './types.ts';
 
-export const closeIncomingOrderSourceCellDeclaration = declareCommandCell<
+export const closeIncomingOrderSourceCellDeclaration = defineOperation<
   CloseIncomingOrderSourceCommand,
   CloseIncomingOrderSourceResult,
   CloseIncomingOrderSourceExpectedFailure
 >({
+  kind: 'command',
   id: closeIncomingOrderSourceOperationId,
   authentication: 'none',
   contract: closeIncomingOrderSourceContract,
@@ -40,7 +41,7 @@ export const closeIncomingOrderSourceCellDeclaration = declareCommandCell<
 export const makeCloseIncomingOrderSourceCell = (
   dependencies: CloseIncomingOrderSourceDependencies,
 ) =>
-  bindCell(
+  defineOperation(
     closeIncomingOrderSourceCellDeclaration,
     makeExecuteCloseIncomingOrderSource(dependencies),
   );

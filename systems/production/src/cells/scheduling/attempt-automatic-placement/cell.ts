@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { attemptAutomaticPlacementContract } from './contract.ts';
 import {
   makeExecuteAttemptAutomaticPlacement,
@@ -11,11 +11,12 @@ import {
   type AttemptAutomaticPlacementResult,
 } from './types.ts';
 
-export const attemptAutomaticPlacementCellDeclaration = declareCommandCell<
+export const attemptAutomaticPlacementCellDeclaration = defineOperation<
   AttemptAutomaticPlacementCommand,
   AttemptAutomaticPlacementResult,
   AttemptAutomaticPlacementExpectedFailure
 >({
+  kind: 'command',
   id: attemptAutomaticPlacementOperationId,
   authentication: 'none',
   contract: attemptAutomaticPlacementContract,
@@ -34,7 +35,7 @@ export const attemptAutomaticPlacementCellDeclaration = declareCommandCell<
 export const makeAttemptAutomaticPlacementCell = (
   deps: AttemptAutomaticPlacementDependencies,
 ) =>
-  bindCell(
+  defineOperation(
     attemptAutomaticPlacementCellDeclaration,
     makeExecuteAttemptAutomaticPlacement(deps),
   );

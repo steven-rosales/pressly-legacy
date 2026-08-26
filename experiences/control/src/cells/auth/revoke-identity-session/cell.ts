@@ -4,13 +4,14 @@ import type {
 } from "../../../auth/model/schemas.ts"
 import { controlRevokeIdentitySessionContract } from "./contract.ts"
 import { revokeOneSurface } from "./http.ts"
-import { declareCommandCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
-export const controlRevokeIdentitySessionCellDeclaration = declareCommandCell<
+export const controlRevokeIdentitySessionCellDeclaration = defineOperation<
   RevokeIdentityInput,
   RevokedCount,
   never
 >({
+  kind: "command",
   id: "control.revoke-identity-session.v1",
   contract: controlRevokeIdentitySessionContract,
   authorization: { capability: "auth:session:revoke", timing: "before-input" },

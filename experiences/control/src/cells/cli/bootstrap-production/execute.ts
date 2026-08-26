@@ -4,7 +4,7 @@ import type {
   ProductionBootstrapCliInput,
 } from "./contract.ts"
 import { adminCliProductionBootstrapCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 export type PreparedProductionBootstrap = Readonly<{
   manageLocation: (
@@ -84,7 +84,7 @@ const executePreparedProductionBootstrap = async (
 export const makeAdminCliProductionBootstrapCell = (
   dependencies: AdminCliProductionBootstrapDependencies,
 ) =>
-  bindCell(adminCliProductionBootstrapCellDeclaration, async (input) => {
+  defineOperation(adminCliProductionBootstrapCellDeclaration, async (input) => {
     const prepared = await dependencies.prepare(input.file)
     if (prepared.kind === "failure") return prepared
     return dependencies.runExclusive(() =>

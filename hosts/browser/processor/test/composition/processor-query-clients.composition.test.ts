@@ -1,14 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
+import { processorBrowserOperations } from '@pressly/topology/browser-operations';
+import { processorBrowserOperationBindings } from '@pressly/topology/browser';
 import { makeProcessorRuntimeFixture as makeProcessorRuntime } from '../support/processor-runtime.fixture.ts';
 import { browserStorageFixture } from '../support/browser-storage.fixture.ts';
-import bindingSourceText from '../../../../../generated/runtime/src/browser/processor.ts?raw';
 import compositionSourceText from '../../../../../topology/runtime/browser/processor.ts?raw';
 
 const compositionSource = compositionSourceText.replace(/\s+/g, ' ');
-const bindingSource = bindingSourceText.replace(/\s+/g, ' ');
 
 describe('Processor query-client composition', () => {
-  it('binds generated authentication and only the four browser-consumed Orders operations', () => {
+  it('binds explicit authentication and only the four browser-consumed Orders operations', () => {
     for (const binding of [
       'processor.auth-login.v1',
       'processor.complete-mfa-challenge.v1',
@@ -19,9 +19,7 @@ describe('Processor query-client composition', () => {
       'orders.reject-incoming-order-proposal.v1',
       'orders.restore-incoming-order-proposal.v1',
     ])
-      expect(bindingSource).toMatch(
-        new RegExp(`processorClient\\.operations\\[['"]${binding}['"]\\]`),
-      );
+      expect(processorBrowserOperations).toHaveProperty(binding);
 
     expect(compositionSource).toContain(
       'makeProcessorAuthenticationBrowserClient({',
@@ -29,67 +27,55 @@ describe('Processor query-client composition', () => {
     expect(compositionSource).toContain('makeProcessorOrdersBrowserClient({');
     expect(compositionSource).not.toContain('makeApiAuthenticationAdapter');
     expect(compositionSource).not.toContain('makeApiOrderManagementAdapter');
-    expect(bindingSource).not.toMatch(
-      /["']\/(?:processor\/auth|order-management)\//,
-    );
   });
 
-  it('binds all seven browser ports to generated Processor metadata', () => {
-    for (const binding of [
+  it('binds all seven browser ports to explicit Processor metadata', () => {
+    for (const [factory, key, operationId] of [
       [
         'makeLoadProductionBoardClient',
         'loadBoard',
-        'processorLoadProductionBoardV1',
+        'processor.load-production-board.v1',
       ],
       [
         'makePreviewProductionOrderBacklogClient',
         'previewOrderBacklog',
-        'processorPreviewProductionOrderBacklogV1',
+        'processor.preview-production-order-backlog.v1',
       ],
       [
         'makeLoadProductionWorkspaceClient',
         'loadWorkspace',
-        'processorLoadProductionWorkspaceV1',
+        'processor.load-production-workspace.v1',
       ],
       [
         'makeLoadRemainingDayForecastClient',
         'loadRemainingDayForecast',
-        'processorLoadRemainingDayForecastV1',
+        'processor.load-remaining-day-forecast.v1',
       ],
       [
         'makeListProductionHistoryActivityClient',
         'listHistoryActivity',
-        'processorListProductionHistoryActivityV1',
+        'processor.list-production-history-activity.v1',
       ],
       [
         'makeLoadProductionHistoryRunClient',
         'loadHistoryRun',
-        'processorLoadProductionHistoryRunV1',
+        'processor.load-production-history-run.v1',
       ],
       [
         'makeListProductionOrderControlClient',
         'listOrderControl',
-        'processorListProductionOrderControlV1',
+        'processor.list-production-order-control.v1',
       ],
     ] as const) {
-      expect(bindingSource).toContain(`${binding[1]}: ${binding[2]}`);
+      expect(processorBrowserOperationBindings[key].operationId).toBe(
+        operationId,
+      );
       expect(compositionSource).toMatch(
         new RegExp(
-          `${binding[0]}\\(\\{\\s*operation:\\s*input\\.operations\\.${binding[1]},\\s*request,?\\s*\\}\\)`,
+          `${factory}\\(\\{\\s*operation:\\s*input\\.operations\\.${key},\\s*request,?\\s*\\}\\)`,
         ),
       );
     }
-
-    for (const handwrittenPath of [
-      '/workspace',
-      '/forecast',
-      '/order-backlog/preview',
-      '/history/activity',
-      '/history/runs/',
-      '/order-control',
-      '/board',
-    ])
-      expect(bindingSource).not.toContain(handwrittenPath);
   });
 
   it('exposes every injected query through the unchanged Production port', () => {

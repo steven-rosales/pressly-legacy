@@ -1,8 +1,9 @@
 import { publishSurface } from "./cli.ts"
 import { publishContract } from "./contract.ts"
-import { declareCommandCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
-export const adminCliPricingPublishCellDeclaration = declareCommandCell({
+export const adminCliPricingPublishCellDeclaration = defineOperation({
+  kind: "command",
   id: "control.cli-pricing-publish.v1",
   authentication: "none",
   contract: publishContract,

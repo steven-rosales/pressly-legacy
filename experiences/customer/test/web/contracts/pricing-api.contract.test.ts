@@ -10,7 +10,7 @@ describe('pricing API contract', () => {
     loadCatalog.mockReset();
   });
 
-  it('loads pricing through the generated Customer client with unchanged query observation', async () => {
+  it('loads pricing through the direct Customer client with unchanged query observation', async () => {
     const catalog = {
       serviceSlug: 'wash-fold',
       currency: 'USD',

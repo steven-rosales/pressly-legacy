@@ -6,7 +6,7 @@ import {
 import { configError, validationError } from '@pressly/errors/factories';
 import { makeAbortReason } from '@pressly/errors/abort-reason';
 import type { PostgresDatabase } from '@pressly/postgres/client';
-import type { resolveCliRuntimeInvocation } from '@pressly/generated-runtime/cli';
+import type { resolveCliRuntimeInvocation } from '@pressly/topology/cli';
 import { uuidIdSource } from '@pressly/cells/id-source/node';
 import { systemClock, type Clock } from '@pressly/time';
 import type { IdSource } from '@pressly/cells/id-source';

@@ -5,10 +5,11 @@ import type {
 } from "../../../auth/model/schemas.ts"
 import { controlCliAuthApiConfirmMfaEnrollmentContract } from "./contract.ts"
 import { controlCliAuthApiConfirmMfaEnrollmentSurface } from "./http.ts"
-import { declareCommandCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 export const controlCliAuthApiConfirmMfaEnrollmentCellDeclaration =
-  declareCommandCell<ConfirmMfaInput, RecoveryCodes, ConfirmMfaFailure>({
+  defineOperation<ConfirmMfaInput, RecoveryCodes, ConfirmMfaFailure>({
+    kind: "command",
     id: "control.cli-auth-api-confirm-mfa-enrollment.v1",
     contract: controlCliAuthApiConfirmMfaEnrollmentContract,
     authorization: {

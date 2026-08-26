@@ -6,7 +6,6 @@ import { describe, expect, it } from 'vitest';
 const repositoryRoot = fileURLToPath(new URL('../..', import.meta.url));
 const scannedRoots = [
   'experiences',
-  'generated',
   'hosts',
   'platform',
   'systems',

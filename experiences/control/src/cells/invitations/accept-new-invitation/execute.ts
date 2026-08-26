@@ -5,7 +5,7 @@ import {
   invitationPeerFailure,
 } from "../../../management/invitations/failure.ts"
 import { acceptNewControlInvitationCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 type AcceptExecute = AccessExecute<"acceptWorkforceInvitation">
 
@@ -26,7 +26,7 @@ const projectAcceptance = (value: RawAcceptance): InvitationAcceptance => ({
 })
 
 export const makeAcceptNewControlInvitationCell = (access: AcceptExecute) =>
-  bindCell(acceptNewControlInvitationCellDeclaration, async (input) => {
+  defineOperation(acceptNewControlInvitationCellDeclaration, async (input) => {
     if (input.identityMode !== "new_identity")
       return {
         kind: "failure",

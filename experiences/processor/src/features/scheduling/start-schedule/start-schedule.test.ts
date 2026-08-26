@@ -31,7 +31,7 @@ const result: StartScheduleResult = {
 }
 
 describe("Processor start-schedule experience", () => {
-  it("preserves the canonical request and result contracts through generated metadata", async () => {
+  it("preserves the canonical request and result contracts through declared metadata", async () => {
     const request = vi
       .fn<StartScheduleRequestTransport>()
       .mockResolvedValue(result)

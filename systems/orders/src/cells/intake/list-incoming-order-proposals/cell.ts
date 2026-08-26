@@ -1,4 +1,4 @@
-import { bindCell, declareQueryCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import type { PostgresDatabase } from '@pressly/postgres/client';
 import type { OrdersSchema } from '../../../schema/orders.ts';
 import { listIncomingOrderProposalsContract } from './contract.ts';
@@ -12,11 +12,12 @@ import {
   type ListIncomingOrderProposalsQuery,
 } from './types.ts';
 
-export const listIncomingOrderProposalsCellDeclaration = declareQueryCell<
+export const listIncomingOrderProposalsCellDeclaration = defineOperation<
   ListIncomingOrderProposalsQuery,
   IncomingOrderProposalListResult,
   ListIncomingOrderProposalsExpectedFailure
 >({
+  kind: 'query',
   id: listIncomingOrderProposalsOperationId,
   authentication: 'required',
   contract: listIncomingOrderProposalsContract,
@@ -39,7 +40,7 @@ export const makeListIncomingOrderProposalsCell = (
     | 'orderSourceTerminalTombstones'
   >,
 ) =>
-  bindCell(
+  defineOperation(
     listIncomingOrderProposalsCellDeclaration,
     makeExecuteListIncomingOrderProposals(
       makeListIncomingOrderProposalsPostgresRepository(db, orders),

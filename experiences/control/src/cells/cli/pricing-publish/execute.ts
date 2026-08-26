@@ -2,7 +2,7 @@ import type { AdminCliPricingDependencies } from "../../../cli/pricing-dependenc
 import type { CliFailure } from "../../../cli/model.ts"
 import { cliFailure, readRequiredSession } from "../../../cli/model.ts"
 import { adminCliPricingPublishCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 const withPricingSession = async <Output>(
   dependencies: AdminCliPricingDependencies,
@@ -26,7 +26,7 @@ const withPricingSession = async <Output>(
 export const makeAdminCliPricingPublishCell = (
   dependencies: AdminCliPricingDependencies,
 ) =>
-  bindCell(adminCliPricingPublishCellDeclaration, (input) => {
+  defineOperation(adminCliPricingPublishCellDeclaration, (input) => {
     if (input.stage === "plan")
       return withPricingSession(dependencies, async (accessToken) => {
         const planned = await dependencies.api.planChange(accessToken, input)

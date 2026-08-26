@@ -53,7 +53,7 @@ describe('browser e2e harness', () => {
       'access_production_locations',
       'owner and owner-local location rows do not exactly match the bootstrap manifest',
       'node --import tsx tooling/postgres/migrate.ts',
-      '--filter=@pressly/generated...',
+      '--filter=@pressly/topology...',
       '--password-stdin',
       '--fail-on-flaky-tests',
     ]) {

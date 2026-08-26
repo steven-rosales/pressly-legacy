@@ -3,7 +3,7 @@
 import {
   customerWebClient,
   type CustomerBrowserCapabilities,
-} from '@pressly/generated-runtime/browser/customer-client';
+} from '@pressly/topology/browser/customer-client';
 import type { ReactNode } from 'react';
 
 const customerBrowserCapabilities = Object.freeze({

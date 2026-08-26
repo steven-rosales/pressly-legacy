@@ -1,10 +1,11 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import type { AccessExecute } from '../../../auth/model/access.ts';
 import { customerBeginMfaEnrollmentContract } from './contract.ts';
 import { makeExecuteCustomerBeginMfaEnrollment } from './execute.ts';
 import { customerBeginMfaEnrollmentHttpSurface } from './http.ts';
 
-export const customerBeginMfaEnrollmentCellDeclaration = declareCommandCell({
+export const customerBeginMfaEnrollmentCellDeclaration = defineOperation({
+  kind: 'command',
   id: 'customer.begin-mfa-enrollment.v1',
   contract: customerBeginMfaEnrollmentContract,
   authorization: {
@@ -21,7 +22,7 @@ export const customerBeginMfaEnrollmentCellDeclaration = declareCommandCell({
 export const makeCustomerBeginMfaEnrollmentCell = (
   access: AccessExecute<'beginMfaEnrollment'>,
 ) =>
-  bindCell(
+  defineOperation(
     customerBeginMfaEnrollmentCellDeclaration,
     makeExecuteCustomerBeginMfaEnrollment(access),
   );

@@ -11,7 +11,7 @@ import {
   controlCliAuthApiLogoutV1,
   controlCliAuthApiRegenerateMfaRecoveryCodesV1,
   controlCliAuthApiRemoveMfaV1,
-} from '@pressly/generated/clients/control';
+} from '@pressly/topology/browser-operations';
 import {
   makeAdminCliClientFactory,
   readAdminApiUrl,

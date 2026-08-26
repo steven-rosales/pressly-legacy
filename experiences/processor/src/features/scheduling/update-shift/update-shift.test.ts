@@ -36,7 +36,7 @@ const result: UpdateProductionShiftResult = {
 }
 
 describe("Processor update-shift experience", () => {
-  it("preserves version and idempotency through generated metadata and the canonical result decoder", async () => {
+  it("preserves version and idempotency through declared metadata and the canonical result decoder", async () => {
     const request = vi
       .fn<UpdateShiftRequestTransport>()
       .mockResolvedValue(result)

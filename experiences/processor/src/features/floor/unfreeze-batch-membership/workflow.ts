@@ -31,5 +31,6 @@ export const makeUnfreezeBatchMembershipWorkflow =
         expectedBatchVersion: intent.expectedBatchVersion,
       },
     })
+
     return dependencies.execute({ ...intent, idempotencyKey })
   }

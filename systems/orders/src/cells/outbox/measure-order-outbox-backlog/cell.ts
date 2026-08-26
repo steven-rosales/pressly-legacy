@@ -1,4 +1,4 @@
-import { bindCell, declareQueryCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import type { OrderOutboxBacklog } from '../../../model/order-outbox/model.ts';
 import { measureOrderOutboxBacklogContract } from './contract.ts';
 import {
@@ -11,11 +11,12 @@ import {
   type MeasureOrderOutboxBacklogInput,
 } from './types.ts';
 
-export const measureOrderOutboxBacklogCellDeclaration = declareQueryCell<
+export const measureOrderOutboxBacklogCellDeclaration = defineOperation<
   MeasureOrderOutboxBacklogInput,
   OrderOutboxBacklog,
   MeasureOrderOutboxBacklogExpectedFailure
 >({
+  kind: 'query',
   id: measureOrderOutboxBacklogOperationId,
   authentication: 'none',
   contract: measureOrderOutboxBacklogContract,
@@ -27,7 +28,7 @@ export const measureOrderOutboxBacklogCellDeclaration = declareQueryCell<
 export const makeMeasureOrderOutboxBacklogCell = (
   dependencies: MeasureOrderOutboxBacklogDependencies,
 ) =>
-  bindCell(
+  defineOperation(
     measureOrderOutboxBacklogCellDeclaration,
     makeExecuteMeasureOrderOutboxBacklog(dependencies),
   );

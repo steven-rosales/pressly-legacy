@@ -28,6 +28,16 @@ export type ComposedMetricCatalog<
   [Entry in Descriptor as Entry['name']]: CatalogMetricDefinition<Entry>;
 }>;
 
+export type RuntimeMetricCatalog = Readonly<
+  Record<string, CatalogMetricDefinition>
+>;
+
+export type RuntimeObservabilityCatalog = Readonly<{
+  metrics: RuntimeMetricCatalog;
+  operationIdFor: (operation: string) => string | undefined;
+  operationIdForJobLabel: (job: string) => string | undefined;
+}>;
+
 export type MetricCatalogComposition<
   Descriptor extends AnyMetricDescriptor = AnyMetricDescriptor,
 > =

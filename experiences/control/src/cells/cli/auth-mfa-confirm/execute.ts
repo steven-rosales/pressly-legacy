@@ -6,7 +6,7 @@ import type {
 } from "../../../cli/model.ts"
 import { cliFailure, readRequiredSession } from "../../../cli/model.ts"
 import { adminCliAuthMfaConfirmCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 const withSession = async <Output>(
   store: AdminCliSessionStore,
@@ -28,7 +28,7 @@ const withSession = async <Output>(
 export const makeAdminCliAuthMfaConfirmCell = (
   dependencies: AdminCliAuthDependencies,
 ) =>
-  bindCell(adminCliAuthMfaConfirmCellDeclaration, (input) => {
+  defineOperation(adminCliAuthMfaConfirmCellDeclaration, (input) => {
     const code = input.code
     if (code === undefined || code.trim() === "")
       return Promise.resolve({

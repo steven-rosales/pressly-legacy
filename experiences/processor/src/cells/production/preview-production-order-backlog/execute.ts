@@ -17,7 +17,7 @@ import {
   resolveOperationalOrders,
 } from "../../../server/model/operational-order.ts"
 import { previewProcessorProductionOrderBacklogCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 export type PreviewProductionOrderBacklog = ProductionQuery<
   PreviewProductionOrderBacklogCommand,
@@ -71,7 +71,7 @@ export const makePreviewProcessorProductionOrderBacklogCell = (dependencies: {
   previewBacklog: PreviewProductionOrderBacklog
   resolveOrderCanonical: ResolveOperationalOrderCanonical
 }) =>
-  bindCell(
+  defineOperation(
     previewProcessorProductionOrderBacklogCellDeclaration,
     async (input) => {
       const preview = await dependencies.previewBacklog(input)

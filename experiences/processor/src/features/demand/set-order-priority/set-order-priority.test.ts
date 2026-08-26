@@ -31,7 +31,7 @@ const result: ProductionMutationResult = {
 }
 
 describe("Processor set-order-priority experience", () => {
-  it("maps the unchanged command body through the generated route", async () => {
+  it("maps the unchanged command body through the declared route", async () => {
     const request = vi
       .fn<SetOrderPriorityRequestTransport>()
       .mockResolvedValue(result)

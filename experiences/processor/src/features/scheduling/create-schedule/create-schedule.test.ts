@@ -45,7 +45,7 @@ const proposal: ScheduleProposal = {
 }
 
 describe("Processor create-schedule experience", () => {
-  it("preserves canonical request and proposal contracts through generated metadata", async () => {
+  it("preserves canonical request and proposal contracts through declared metadata", async () => {
     const request = vi
       .fn<CreateScheduleRequestTransport>()
       .mockResolvedValue(proposal)

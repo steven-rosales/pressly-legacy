@@ -5,7 +5,7 @@ import {
   defineCellContract,
   defineCliCatalog,
   defineCliProgram,
-  defineCommandCell,
+  defineOperation,
   type CliInteractiveDriver,
   type CliPresentationManifest,
   type CliProgramManifest,
@@ -145,7 +145,8 @@ const makeCatalog = (calls: string[], options: CatalogOptions = {}) => {
           timing: 'after-input',
           scope: (input: TestInput) => `target:${input.target}`,
         } as const);
-  const cell = defineCommandCell({
+  const cell = defineOperation({
+    kind: 'command',
     id: `example.${commandId.replace(/\.v[0-9]+$/, '').replaceAll('.', '-')}.v1`,
     contract,
     authorization,

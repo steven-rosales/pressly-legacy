@@ -5,18 +5,19 @@ import type {
 } from "../../../management/workforce/contracts.ts"
 import { listControlMembersContract } from "./contract.ts"
 import { listMembersSurface } from "./http.ts"
-import { declareQueryCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 export const readAuthorization = {
   capability: "team:read",
   timing: "before-input",
 } as const
 
-export const listControlMembersCellDeclaration = declareQueryCell<
+export const listControlMembersCellDeclaration = defineOperation<
   ListMembersInput,
   MemberPage,
   ControlWorkforceFailure
 >({
+  kind: "query",
   id: "control.list-members.v1",
   contract: listControlMembersContract,
   authorization: readAuthorization,

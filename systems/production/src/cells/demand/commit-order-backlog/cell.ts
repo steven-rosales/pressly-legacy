@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { commitOrderBacklogContract } from './contract.ts';
 import {
   makeExecuteCommitOrderBacklog,
@@ -12,11 +12,12 @@ import {
   type CommitOrderBacklogResult,
 } from './types.ts';
 
-export const commitOrderBacklogCellDeclaration = declareCommandCell<
+export const commitOrderBacklogCellDeclaration = defineOperation<
   CommitOrderBacklogCommand,
   CommitOrderBacklogResult,
   CommitOrderBacklogExpectedFailure
 >({
+  kind: 'command',
   id: commitOrderBacklogOperationId,
   contract: commitOrderBacklogContract,
   authorization: {
@@ -39,7 +40,7 @@ export const commitOrderBacklogCellDeclaration = declareCommandCell<
 export const makeCommitOrderBacklogCell = <Stored>(
   dependencies: CommitOrderBacklogDependencies<Stored>,
 ) =>
-  bindCell(
+  defineOperation(
     commitOrderBacklogCellDeclaration,
     makeExecuteCommitOrderBacklog(dependencies),
   );

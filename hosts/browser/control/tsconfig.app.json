@@ -28,7 +28,7 @@
       "path": "../../../experiences/control/tsconfig.json"
     },
     {
-      "path": "../../../generated/runtime/tsconfig.json"
+      "path": "../../../topology/tsconfig.build.json"
     },
     {
       "path": "../../../platform/errors/tsconfig.json"

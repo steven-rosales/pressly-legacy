@@ -37,7 +37,7 @@ const result: SchedulerConfig = {
 }
 
 describe("Processor publish-scheduler-config experience", () => {
-  it("preserves the command body and canonical result decoder through generated metadata", async () => {
+  it("preserves the command body and canonical result decoder through declared metadata", async () => {
     const request = vi
       .fn<PublishSchedulerConfigRequestTransport>()
       .mockResolvedValue(result)

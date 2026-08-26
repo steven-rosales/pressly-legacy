@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { reconcileProductionLocationContract } from './contract.ts';
 import {
   makeExecuteReconcileProductionLocation,
@@ -10,11 +10,12 @@ import type {
 } from './types.ts';
 import { reconcileProductionLocationOperationId } from './types.ts';
 
-export const reconcileProductionLocationCellDeclaration = declareCommandCell<
+export const reconcileProductionLocationCellDeclaration = defineOperation<
   ReconcileProductionLocationCommand,
   ReconcileProductionLocationResult,
   never
 >({
+  kind: 'command',
   id: reconcileProductionLocationOperationId,
   authentication: 'none',
   contract: reconcileProductionLocationContract,
@@ -35,7 +36,7 @@ export const reconcileProductionLocationCellDeclaration = declareCommandCell<
 export const makeReconcileProductionLocationCell = (
   dependencies: ReconcileProductionLocationDependencies,
 ) =>
-  bindCell(
+  defineOperation(
     reconcileProductionLocationCellDeclaration,
     makeExecuteReconcileProductionLocation(dependencies),
   );

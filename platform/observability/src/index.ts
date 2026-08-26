@@ -61,6 +61,8 @@ export type {
   CatalogMetricUnit,
   ComposedMetricCatalog,
   MetricCatalogComposition,
+  RuntimeMetricCatalog,
+  RuntimeObservabilityCatalog,
 } from './metric-catalog-algebra.js';
 export type {
   TraceSink,

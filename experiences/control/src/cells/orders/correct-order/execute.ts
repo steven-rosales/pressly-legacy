@@ -1,13 +1,13 @@
 import type { OrderManagementExecute } from "../../../management/model/dependencies.ts"
 import { orderFailure } from "../../../management/model/failure.ts"
 import { correctControlOrderCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 export const makeCorrectControlOrderCell = (dependencies: {
   getOrder: OrderManagementExecute<"getCanonicalOrder">
   correctOrder: OrderManagementExecute<"correctOrder">
 }) =>
-  bindCell(correctControlOrderCellDeclaration, async (input) => {
+  defineOperation(correctControlOrderCellDeclaration, async (input) => {
     const locationIds = input.context.access.locations.map(
       (location) => location.id,
     )

@@ -26,7 +26,7 @@ const fault = unexpectedError({
 });
 
 describe('Customer Pricing browser client', () => {
-  it('renders generated metadata and preserves transport failure identity', async () => {
+  it('renders declared metadata and preserves transport failure identity', async () => {
     const request = vi.fn().mockRejectedValue(fault);
     const client = makeCustomerPricingBrowserClient({ operation, request });
 

@@ -1,4 +1,4 @@
-import { bindCell, declareQueryCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { resolveSourceLocationContract } from './contract.ts';
 import { makeExecuteResolveSourceLocation } from './execute.ts';
 import {
@@ -9,11 +9,12 @@ import {
   type ResolveSourceLocationResult,
 } from './types.ts';
 
-export const resolveSourceLocationCellDeclaration = declareQueryCell<
+export const resolveSourceLocationCellDeclaration = defineOperation<
   ResolveSourceLocationInput,
   ResolveSourceLocationResult,
   ResolveSourceLocationExpectedFailure
 >({
+  kind: 'query',
   id: resolveSourceLocationOperationId,
   authentication: 'none',
   contract: resolveSourceLocationContract,
@@ -25,7 +26,7 @@ export const resolveSourceLocationCellDeclaration = declareQueryCell<
 export const makeResolveSourceLocationCell = (
   repo: ResolveSourceLocationRepository,
 ) =>
-  bindCell(
+  defineOperation(
     resolveSourceLocationCellDeclaration,
     makeExecuteResolveSourceLocation(repo),
   );

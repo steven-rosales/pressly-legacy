@@ -18,19 +18,17 @@ describe('Control browser host dependency boundary', () => {
       'react-dom/client',
     ]);
     expect(implementation).not.toMatch(
-      /@pressly\/(?:.*-system|experience-|contracts|generated)/,
+      /@pressly\/(?:.*-system|experience-|contracts)/,
     );
     expect(implementation).not.toMatch(/(?:apps|systems|experiences)\//);
   });
 
-  it('declares only the generated runtime composition edge', () => {
+  it('declares only the handwritten topology composition edge', () => {
     const manifest = JSON.parse(read('../package.json')) as {
       dependencies: Record<string, string>;
     };
 
-    expect(manifest.dependencies['@pressly/generated-runtime']).toBe(
-      'workspace:*',
-    );
+    expect(manifest.dependencies['@pressly/topology']).toBe('workspace:*');
     expect(
       manifest.dependencies['@pressly/experience-control'],
     ).toBeUndefined();

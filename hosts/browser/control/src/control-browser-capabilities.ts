@@ -1,4 +1,4 @@
-import type { ControlBrowserCapabilities } from '@pressly/generated-runtime/browser/control';
+import type { ControlBrowserCapabilities } from '@pressly/topology/browser';
 
 export const makeControlBrowserCapabilities = (input: {
   window: Window;

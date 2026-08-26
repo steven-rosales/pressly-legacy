@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { loginContract } from './contract.ts';
 import type { Login } from './login.usecase.ts';
 import {
@@ -8,11 +8,12 @@ import {
   type OperationOutput,
 } from '../../../model/boundary/cell-contract.ts';
 
-export const loginCellDeclaration = declareCommandCell<
+export const loginCellDeclaration = defineOperation<
   OperationInput<Login>,
   OperationOutput<Login>,
   OperationFailure<Login>
 >({
+  kind: 'command',
   id: 'access.login.v1',
   authentication: 'none',
   contract: loginContract,
@@ -23,4 +24,4 @@ export const loginCellDeclaration = declareCommandCell<
 });
 
 export const makeLoginCell = (operation: Login) =>
-  bindCell(loginCellDeclaration, resultOperation(operation));
+  defineOperation(loginCellDeclaration, resultOperation(operation));

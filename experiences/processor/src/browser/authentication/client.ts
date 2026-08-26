@@ -2,32 +2,32 @@ import {
   logoutResultSchema,
   processorAuthenticatedSessionSchema,
   processorLoginResultSchema,
-} from "../../contracts/authentication-v1.ts"
+} from '../../contracts/authentication-v1.ts';
 import {
   strictWireCodec,
   type ProcessorBrowserRequestTransport,
-} from "../transport.ts"
+} from '../transport.ts';
 import type {
   ProcessorAuthenticationBrowserClient,
   ProcessorAuthenticationOperations,
-} from "./types.ts"
+} from './types.ts';
 
-const loginCodec = strictWireCodec(processorLoginResultSchema)
-const sessionCodec = strictWireCodec(processorAuthenticatedSessionSchema)
-const logoutCodec = strictWireCodec(logoutResultSchema)
+const loginCodec = strictWireCodec(processorLoginResultSchema);
+const sessionCodec = strictWireCodec(processorAuthenticatedSessionSchema);
+const logoutCodec = strictWireCodec(logoutResultSchema);
 
 export const makeProcessorAuthenticationBrowserClient = (
   input: Readonly<{
-    operations: ProcessorAuthenticationOperations
-    request: ProcessorBrowserRequestTransport
-    acceptCsrfToken: (token: string) => void
-    clearCsrfToken: () => void
-  }>
+    operations: ProcessorAuthenticationOperations;
+    request: ProcessorBrowserRequestTransport;
+    acceptCsrfToken: (token: string) => void;
+    clearCsrfToken: () => void;
+  }>,
 ): ProcessorAuthenticationBrowserClient => {
   const accept = <Session extends { csrfToken: string }>(session: Session) => {
-    input.acceptCsrfToken(session.csrfToken)
-    return session
-  }
+    input.acceptCsrfToken(session.csrfToken);
+    return session;
+  };
 
   return Object.freeze({
     restore: async () =>
@@ -37,8 +37,8 @@ export const makeProcessorAuthenticationBrowserClient = (
             method: input.operations.loadSession.http.session.method,
             path: input.operations.loadSession.http.session.path,
           },
-          sessionCodec
-        )
+          sessionCodec,
+        ),
       ),
     login: async (credentials) => {
       const outcome = await input.request(
@@ -47,11 +47,11 @@ export const makeProcessorAuthenticationBrowserClient = (
           path: input.operations.login.http.login.path,
           body: credentials,
         },
-        loginCodec
-      )
-      if (outcome.status === "authenticated") accept(outcome)
-      else input.clearCsrfToken()
-      return outcome
+        loginCodec,
+      );
+      if (outcome.status === 'authenticated') accept(outcome);
+      else input.clearCsrfToken();
+      return outcome;
     },
     completeMfa: async (body) =>
       accept(
@@ -61,8 +61,8 @@ export const makeProcessorAuthenticationBrowserClient = (
             path: input.operations.completeMfaChallenge.http.challenge.path,
             body,
           },
-          sessionCodec
-        )
+          sessionCodec,
+        ),
       ),
     logout: async () => {
       await input.request(
@@ -70,9 +70,9 @@ export const makeProcessorAuthenticationBrowserClient = (
           method: input.operations.logout.http.logout.method,
           path: input.operations.logout.http.logout.path,
         },
-        logoutCodec
-      )
-      input.clearCsrfToken()
+        logoutCodec,
+      );
+      input.clearCsrfToken();
     },
-  })
-}
+  });
+};

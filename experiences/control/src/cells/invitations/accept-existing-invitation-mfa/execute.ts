@@ -14,7 +14,7 @@ import {
   invitationPeerFailure,
 } from "../../../management/invitations/failure.ts"
 import { acceptExistingMfaCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 import { invariantViolationError } from "@pressly/errors/factories"
 
 type AcceptExecute = AccessExecute<"acceptWorkforceInvitation">
@@ -209,7 +209,7 @@ export type AcceptExistingMfaDependencies = BootstrapDependencies &
 export const makeAcceptExistingMfaCell = (
   dependencies: AcceptExistingMfaDependencies,
 ) =>
-  bindCell(acceptExistingMfaCellDeclaration, async (input) => {
+  defineOperation(acceptExistingMfaCellDeclaration, async (input) => {
     const completed = await dependencies.completeMfaChallenge.execute({
       challengeToken: input.challengeToken,
       method: input.method,

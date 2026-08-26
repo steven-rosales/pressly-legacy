@@ -5,13 +5,14 @@ import type {
 } from "../../../auth/model/schemas.ts"
 import { controlConfirmMfaEnrollmentContract } from "./contract.ts"
 import { confirmSurface } from "./http.ts"
-import { declareCommandCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
-export const controlConfirmMfaEnrollmentCellDeclaration = declareCommandCell<
+export const controlConfirmMfaEnrollmentCellDeclaration = defineOperation<
   ConfirmMfaInput,
   RecoveryCodes,
   ConfirmMfaFailure
 >({
+  kind: "command",
   id: "control.confirm-mfa-enrollment.v1",
   contract: controlConfirmMfaEnrollmentContract,
   authorization: {

@@ -31,7 +31,7 @@ const result: ChangeProductionOrderResolutionResult = {
 }
 
 describe("Processor change-order-resolution experience", () => {
-  it("maps the unchanged command body through generated metadata", async () => {
+  it("maps the unchanged command body through declared metadata", async () => {
     const request = vi
       .fn<ChangeOrderResolutionRequestTransport>()
       .mockResolvedValue(result)

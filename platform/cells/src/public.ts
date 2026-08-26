@@ -83,20 +83,7 @@ export type {
   HttpBoundaryRequestBody,
 } from './http-boundary-profiles.ts';
 
-export {
-  bindCell,
-  bindSubscriptionCell,
-  declareCommandCell,
-  declareProcessCell,
-  declareQueryCell,
-  declareReactionCell,
-  declareSubscriptionCell,
-  defineCommandCell,
-  defineProcessCell,
-  defineQueryCell,
-  defineReactionCell,
-  defineSubscriptionCell,
-} from './cells.ts';
+export { defineOperation } from './cells.ts';
 export type {
   AuthorizationDefinition,
   AuthorizationManifest,
@@ -140,20 +127,13 @@ export { defineExperienceFeature } from './experience-feature.ts';
 export type { ExperienceFeatureManifest } from './experience-feature.ts';
 
 export {
-  defineArchitectureMap,
   defineCliCatalog,
   defineCliProgram,
-  defineClientCatalogs,
   defineEventStreamCatalog,
   defineHttpCatalog,
   defineJobCatalog,
 } from './catalogs.ts';
 export type {
-  CellFailureOf,
-  CellInputOf,
-  CellOutputOf,
-  ClientCatalogDefinition,
-  ClientFor,
   CliProgramGroupManifest,
   CliProgramManifest,
   CliProgramUnknownPresentation,
@@ -169,8 +149,4 @@ export type {
   ExecutableJobCatalog,
   ExecutableJobCatalogEntry,
   ExecutableSubscriptionCell,
-  StaticArchitectureMap,
-  StaticArchitectureFeature,
-  StaticArchitectureOperation,
-  StaticArchitecturePaths,
 } from './catalogs.ts';

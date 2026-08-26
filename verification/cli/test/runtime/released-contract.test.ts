@@ -11,7 +11,7 @@ import {
   authCliUsage,
   pricingCliUsage,
 } from '@pressly/experience-control/cli/presentation';
-import { makeCliCatalogFromOwners } from '@pressly/generated/cli-catalog';
+import { makeCliCatalogFromOwners } from '@pressly/topology/cli';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AdminCliClient } from '../../../../experiences/control/src/cli/adapters/api-client.ts';
 import { cliFailureFromAppError } from '../../../../experiences/control/src/cli/adapters/outcome.ts';

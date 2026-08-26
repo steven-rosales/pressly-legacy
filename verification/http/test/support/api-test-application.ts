@@ -1,7 +1,7 @@
 import type { IdSource } from '@pressly/cells/id-source';
 import { uuidIdSource } from '@pressly/cells/id-source/node';
-import { makeEventStreamCatalogFromOwners } from '@pressly/generated/event-stream-catalog';
-import { makeHttpCatalogFromOwners } from '@pressly/generated/http-catalog';
+import { makeEventStreamCatalogFromOwners } from '@pressly/topology/http';
+import { makeHttpCatalogFromOwners } from '@pressly/topology/http';
 import {
   apiJsonDocument64kbProvider,
   apiJsonDocumentProvider,

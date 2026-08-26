@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { retryOrderOutboxContract } from './contract.ts';
 import { makeExecuteRetryOrderOutbox } from './execute.ts';
 import {
@@ -9,11 +9,12 @@ import {
   type RetryOrderOutboxResult,
 } from './types.ts';
 
-export const retryOrderOutboxCellDeclaration = declareCommandCell<
+export const retryOrderOutboxCellDeclaration = defineOperation<
   RetryOrderOutboxCommand,
   RetryOrderOutboxResult,
   RetryOrderOutboxExpectedFailure
 >({
+  kind: 'command',
   id: retryOrderOutboxOperationId,
   authentication: 'none',
   contract: retryOrderOutboxContract,
@@ -32,7 +33,7 @@ export const retryOrderOutboxCellDeclaration = declareCommandCell<
 export const makeRetryOrderOutboxCell = (
   repository: RetryOrderOutboxRepository,
 ) =>
-  bindCell(
+  defineOperation(
     retryOrderOutboxCellDeclaration,
     makeExecuteRetryOrderOutbox(repository),
   );

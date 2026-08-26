@@ -1,319 +1,203 @@
 # Architecture
 
-Pressly is a cellular TypeScript modular monolith.
-
-The filesystem answers four questions:
-
-1. Who owns the meaning?
-2. Where does one observable operation execute?
-3. Which effects cross a boundary?
-4. Which operations does the deployed topology select?
+Pressly is a handwritten TypeScript modular monolith. The repository has one
+purposeful dependency direction:
 
 ```text
-systems own durable business truth
-cells own independently observable operations
-experiences own cross-system workflows and presentation
-hosts own protocols, frameworks, and process lifecycle
-platform provides business-neutral mechanisms
-topology selects and assembles the deployed graph
-generated records that selection mechanically
+hosts       process and framework entrypoints
+systems     durable business truth and operations
+experiences browser workflows and UI
+platform    reusable technical mechanisms
+topology    composition roots and deployment choices
+verification cross-owner and behavioral proof
 ```
 
-There is one architecture grammar. `apps/`, `modules/`, `packages/`, and
-`infra/` are not source-architecture roots.
+There is no generated source tree and no architecture compiler. TypeScript
+defines behavior; dependency-cruiser and ESLint enforce the boundaries.
 
-The detailed placement contract is in
-[Cell and system placement](./module-architecture.md). Test ownership and
-commands are in [Test guide](./test-guide.md).
-
-## Sources of Truth
-
-1. Source, contracts, schema factories, migrations, and runtime configuration
-   say what the checkout implements.
-2. Stateworks domain memory preserves accepted domain decisions and
-   invariants.
-3. Active Stateworks work preserves current status, evidence, and human gates.
-4. Living docs explain the current architecture and operations.
-5. Completed work, plans, and agent artifacts are historical evidence.
-
-When sources disagree, record and reconcile the drift. Never rewrite history
-to resemble the current checkout.
-
-## Repository Map
+## Repository map
 
 ```text
-hosts/          HTTP, jobs, CLI, and browser process boundaries
-systems/        Access, Customers, Ingress, Orders, Pricing, Production
-experiences/    Control, Customer, and Processor workflows and presentation
-platform/       auth, cells, codec, config, errors, HTTP, jobs, logging,
-                observability, PostgreSQL, testing, and time mechanisms
-topology/       hand-authored deployment selection and owner assembly
-generated/      deterministic catalogs, clients, maps, and runtime bindings
-verification/   cross-owner conformance, flow, and migration proof
-deploy/         container and infrastructure packaging
-tooling/        repository, browser, PostgreSQL, release, and architecture tools
-docs/           current guidance and protected historical plans
-stateworks/     durable domain memory and delivery state
+hosts/
+  http/                  Express process
+  jobs/                  durable worker process
+  cli/                   admin process
+  browser/{control,...}/ React, Next, and browser lifecycle
+
+systems/
+  access/ customers/ ingress/ orders/ pricing/ production/
+
+experiences/
+  control/ customer/ processor/
+
+platform/
+  auth/ cells/ codec/ config/ errors/ http/ jobs/ logging/
+  observability/ postgres/ testing/ time/
+
+topology/
+  http.ts                HTTP composition root
+  jobs.ts                worker composition root
+  cli.ts                 CLI composition root
+  database.ts            PostgreSQL composition root
+  browser/               browser composition roots
+  browser-operations.ts  explicit browser wire descriptors
+  observability.ts       explicit metric and operation catalog
+  pressly.topology.ts    selected owner declarations
+
+verification/             contract, flow, integration, and architecture proof
 ```
 
-Root manifests and configuration may remain as files. Business source does not
-belong at the repository root.
+## Ownership
 
-## Runtime Graph
+Systems own durable meaning. Experiences own cross-system user workflows and
+presentation. Hosts own protocol and process effects. Platform owns mechanisms
+that have no Pressly business vocabulary. Topology connects these pieces; it
+does not make business decisions.
+
+| Area       | Owns                                                              |
+| ---------- | ----------------------------------------------------------------- |
+| Access     | identities, sessions, workforce, authorization, scope             |
+| Customers  | canonical customer identity and customer facts                    |
+| Ingress    | external receipts, inbox leases, quarantine, replay, dead letters |
+| Orders     | proposals, canonical Orders, fulfillments, lifecycle, outbox      |
+| Pricing    | pricebooks, pricing plans, publication                            |
+| Production | demand, scheduling, floor execution, resources, history           |
+| Control    | operator workflow and management UI                               |
+| Customer   | customer-facing web workflow                                      |
+| Processor  | production-floor workflow and UI                                  |
+
+## The main traversal
+
+Start at the entrypoint for the runtime you are changing.
 
 ```text
-owner cell declaration and public assembly
-                    |
-                    v
-            topology/pressly.topology.ts
-                    |
-                    v
-       deterministic generated catalog or binding
-                    |
-                    v
-                 generic host
-                    |
-                    v
-          HTTP / job / CLI / browser process
+HTTP:
+hosts/http/main.ts
+  -> topology/http.ts
+  -> topology/runtime/http/catalog.ts
+  -> topology/runtime/http/bootstrap/target-owners.ts
+  -> owner cell http.ts
+  -> execute.ts
+  -> decide.ts / postgres.ts
+
+Jobs:
+hosts/jobs/src/main.ts
+  -> topology/jobs.ts
+  -> topology/runtime/jobs/catalog.ts
+  -> topology/runtime/jobs/public.ts
+  -> owner cell job.ts
+  -> execute.ts / postgres.ts
+
+CLI:
+hosts/cli/src/main.ts
+  -> topology/cli.ts
+  -> topology/runtime/cli/catalog.ts
+  -> experience-control CLI declarations
+  -> cell executor
+
+Browser:
+hosts/browser/<name>/src/main.tsx
+  -> topology/browser/<name>.ts
+  -> topology/browser-operations.ts
+  -> Experience browser composition
+  -> browser feature model
+  -> HTTP request transport
 ```
 
-Topology selects and constructs behavior. It does not implement business
-behavior. Generated files bind that selection without adding policy. Hosts
-interpret protocols and own process effects without handwritten domain
-branches.
+For one operation, search its versioned ID. Then open its owner declaration,
+contract, executor, decision, persistence adapter, protocol surface, and local
+tests. The operation ID is the stable join key; no architecture map is needed.
 
-### Systems
+## Operations and cells
 
-Each system is the semantic authority for its durable truth.
-
-| System       | Authority                                                                              |
-| ------------ | -------------------------------------------------------------------------------------- |
-| `access`     | identities, sessions, workforce, authorization, business and location scope            |
-| `customers`  | canonical customer identity and customer-owned facts                                   |
-| `ingress`    | external receipts, quarantine, inbox leasing, replay, dead letters, source bindings    |
-| `orders`     | incoming proposals, canonical Orders, fulfillments, lifecycle, transactional outbox    |
-| `pricing`    | pricebooks, pricing plans, and publication                                             |
-| `production` | laundry demand, scheduling, floor execution, resources, history, and operational reads |
-
-A system may expose versioned contracts and narrow capabilities. It never
-imports a peer system's private cells, model, persistence, or schema, and it
-never writes a peer's tables.
-
-### Cells
-
-A cell owns one independently observable command, query, reaction, process, or
-subscription.
-
-Its declaration makes these facts explicit:
-
-- stable versioned operation identity;
-- input, output, and expected-failure contracts;
-- authentication and authorization requirements;
-- transaction, concurrency, and idempotency semantics;
-- HTTP, job, CLI, or event-stream surfaces;
-- emitted and consumed messages; and
-- bounded observability identity.
-
-One operation has one cell path. Operation-specific contracts, decisions,
-executors, persistence, protocol mapping, and tests remain in that cell.
-Stable system language may be promoted only when it has one semantic owner and
-genuine reuse.
-
-### Experiences
-
-An Experience owns a user workflow that crosses system boundaries. It may
-compose public system contracts and capabilities into Control, Customer, or
-Processor behavior.
-
-Experiences also own browser features, presentation state, components, and
-experience-specific projections. They do not own another system's durable
-truth and do not import system internals, persistence, or schema.
-
-### Hosts
-
-Hosts are generic protocol and process executors.
-
-- `hosts/http` owns Express, middleware execution, request context, tracing,
-  process startup, signals, readiness, and shutdown.
-- `hosts/jobs` owns polling, leases, heartbeats, retry timing, cancellation,
-  observation, and shutdown.
-- `hosts/cli` owns arguments, environment, stdin/stdout, session files,
-  prompts, presentation, signals, and exit behavior.
-- `hosts/browser/*` owns framework startup, routing entrypoints, browser
-  globals, telemetry SDKs, hydration, and lifecycle.
-
-A host may import Platform and generated bindings. Host source does not import
-Systems, Experiences, or Topology directly. It contains no Orders,
-Production, Access, Cents, or other business branch.
-
-### Platform
-
-`platform/` owns reusable mechanisms with no Pressly business knowledge:
-
-- `auth`: credential, cookie, signature, and cryptographic mechanisms;
-- `cells`: declarations, contracts, surfaces, catalogs, and core algebra;
-- `codec`: canonical serialization, cursors, JSON, UTC, and digests;
-- `config`: environment and runtime configuration parsing;
-- `errors`: unexpected throwable error language;
-- `http`: framework-neutral HTTP mechanisms;
-- `jobs`: durable job-loop mechanisms;
-- `logging` and `observability`: bounded reporting mechanisms;
-- `postgres`: pooling, transactions, migrations, health, and ledger custody;
-- `testing`: deterministic fixtures and typed operation-proof registration;
-- `time`: clocks and calendar transformations.
-
-Platform never imports a business owner.
-
-### Topology and Generated Code
-
-`topology/` is the hand-authored deployment graph. It selects owner assemblies,
-connects narrow capabilities, supplies concrete mechanisms, and checks route,
-job, event, contract, schema, and operation identity.
-
-`generated/` contains compiler-owned output:
-
-- HTTP, job, CLI, event-stream, and observability catalogs;
-- typed browser clients;
-- the architecture map; and
-- `generated/runtime`, the executable bindings consumed by hosts.
-
-Generated files contain static imports and wiring, never business decisions.
-Edit source declarations or topology, then regenerate.
-
-## Dependency Direction
-
-Allowed direction is narrow:
+A cell keeps one independently observable command, query, reaction, process, or
+subscription together. The useful cell shape is:
 
 ```text
-hosts -> generated runtime, generated catalogs, platform
-topology -> public system and Experience assembly, platform
-generated runtime -> topology, public owner assembly, platform
-generated catalogs and clients -> public owner contracts, platform/cells
-experiences -> public system contracts and capabilities, platform
-systems -> own cells/model/schema, peer public contracts, platform
-platform -> platform
+<verb-object>/
+  cell.ts       operation declaration and binding
+  contract.ts   serialized input/output/failure
+  decide.ts     pure decision, when one exists
+  execute.ts    effect sequencing and atomic intent
+  postgres.ts   owner-local SQL and row mapping
+  http.ts       protocol mapping, when exposed
+  job.ts        job mapping, when exposed
+  *.spec.ts     focused proof
+```
+
+The declaration is typed source data. It records the operation ID, contracts,
+auth policy, transaction/concurrency/idempotency facts, protocol surfaces,
+messages, retry policy, and observability name. Topology selects declarations
+directly into owner compositions.
+
+Keep business meaning in the owning system. Keep pure decisions independent of
+Node, SQL, HTTP, clocks, randomness, logging, and process effects. Return
+expected application failures as typed data; construct unexpected throwables
+through the Errors-owned factories.
+
+## Topology
+
+Topology is intentionally boring and searchable. It contains direct imports,
+arrays, and small adapters:
+
+- `pressly.topology.ts` selects the owner declarations used by this deploy;
+- `runtime/http/catalog.ts`, `runtime/jobs/catalog.ts`, and
+  `runtime/cli/catalog.ts` select executable owner cells for generic hosts;
+- `browser-operations.ts` owns explicit browser operation descriptors;
+- `browser/*.ts` composes each Experience with its descriptors;
+- `observability.ts` joins operation declarations to bounded metric metadata;
+- `database.ts` composes the owner schema factories into one PostgreSQL runtime.
+
+Topology has no source scanners, freshness checks, export-name metadata, artifact
+writers, or generated runtime package. Change the direct composition and let
+TypeScript, tests, dependency-cruiser, and ESLint report mistakes.
+
+## Dependency direction
+
+```text
+topology    -> public systems, public experiences, platform
+hosts       -> topology and platform
+experiences -> public systems, public contracts, platform
+systems     -> own cells/model/schema, peer public contracts, platform
+platform    -> platform
+verification -> public owner/topology surfaces and platform test mechanisms
 ```
 
 Forbidden edges include:
 
-```text
-host -> system, Experience, or topology
-platform -> business owner
-system -> peer runtime, private cell, model, persistence, or schema
-Experience -> system private cell, model, persistence, or schema
-cell -> sibling-cell private implementation
-pure decision -> SQL, HTTP, filesystem, process, clock, random, or logging
-browser presentation -> system runtime or persistence
-```
+- a system importing a peer's private cell, model, persistence, or schema;
+- an Experience importing system internals;
+- business source importing a host;
+- a pure decision importing IO or process effects;
+- a host branching on business policy;
+- a frontend importing server runtime or persistence code; and
+- generic `common`, `shared`, `utils`, or `services` buckets.
 
-Import from the semantic owner. Non-surface files export only declarations they
-own. Direct named re-exports are reserved for declared package or owner
-surfaces. Export-star, identity aliases, and compatibility re-exports are
-forbidden.
+Import from the narrow semantic owner. Public entrypoints may provide named
+exports; internal files export only declarations they own.
 
-## Contracts and Unknown Values
+## Persistence and boundaries
 
-The producer owns every serialized boundary. A cell owns its input, output,
-failure, event, and job contracts. An Experience owns cross-system workflow
-contracts. Consumers import explicit public owner subpaths.
+Each system owns its schema factory. Only `topology/pressly-postgres-schema.ts`
+composes all owner schema segments. SQL and row mapping remain in the owning
+system or cell.
 
 ```text
-unknown
-  -> owner contract decode
-  -> trusted serialized value
-  -> pure boundary mapping
-  -> application language
+owner schema -> topology database.ts -> platform/postgres
+unknown wire input -> owner decoder -> typed contract -> application logic
 ```
 
-Boundary contracts contain serialized values, schemas, and versions. They do
-not contain entities, repositories, database rows, framework objects, or
-internal `Date`-rich models.
+HTTP route policy is declared beside the operation and bound in topology. The
+generic HTTP host owns middleware order, request context, tracing, readiness,
+signals, and shutdown. Jobs own leases, retry timing, heartbeat, and
+shutdown. Browser hosts own browser globals and framework lifecycle.
 
-## Persistence and Migration Ownership
+## Enforcement
 
-Each system owns a schema factory and receives only its schema segment.
-Topology composes those factories into one PostgreSQL database, but every
-foreign key remains inside one owner. Cross-system identity is carried as
-data and reconciled through public capabilities, messages, or an
-Experience-owned process; an owner table never points at a peer table.
-
-```text
-system schema factory -> topology schema composition -> one Drizzle schema
-platform/postgres/migrations -> one immutable ledger -> one migration runner
-```
-
-The current migration history begins at the clean, pre-user database epoch.
-That epoch deliberately retired the compatibility-era non-Pricing history
-while preserving Pricing exactly. Its SQL files and journal order are now the
-immutable baseline: future migrations append to it, and fresh apply, upgrade,
-restore, and checked byte hashes use the same runner and ledger.
-
-Storage rows are representations, not domain entities. SQL stays inside the
-owning cell's PostgreSQL adapter or precisely shared system persistence. Pure
-mappers validate and translate rows synchronously.
-
-Use cases and executors own atomic intent. Transactions keep invariant checks,
-idempotency receipts, audit, durable messages, and mutation together when the
-operation requires it. External network calls normally remain outside the
-transaction.
-
-## Decisions, Effects, and Failures
-
-Pure decisions receive complete facts and return immutable data. Executors
-obtain facts and commit plans through explicit capabilities.
-
-```text
-contract -> execute -> load facts -> decide -> commit effects
-```
-
-Time, IDs, transactions, persistence, crypto, network, queues, files, logging,
-and observation are explicit dependencies. Ambient effects are forbidden below
-the boundary that owns them.
-
-Expected application rejection is typed data. Unexpected mechanism,
-configuration, corruption, or invariant failure uses the Errors-owned
-throwable language and is observed once at the process edge.
-
-## HTTP and Security Boundaries
-
-Cells declare structural HTTP surfaces. Topology binds each selected operation
-to a checked boundary profile. Generated runtime supplies the catalog to the
-HTTP host.
-
-Request locations are parsed once. When authorization needs route scope before
-body parsing, the order is:
-
-```text
-params validation -> authorization -> body validation -> handler
-```
-
-One Express 5 promise boundary handles unexpected failures. Do not add a local
-promise wrapper or a second error boundary. Browser capability visibility is
-presentation only; the HTTP boundary remains authoritative.
-
-## Operation Proof
-
-Every selected operation has meaningful tests in its exact cell directory.
-Tests register literal operation IDs and named claims through
-`@pressly/testkit/operation-proof`.
-
-The strict verifier derives required claims from positive operation semantics.
-Applicable write cells prove real PostgreSQL commit, expected rejection without
-partial state, unexpected rollback, replay, divergent-key conflict,
-concurrency, and state-message atomicity. Cross-system flow tests are recorded
-separately and never certify missing local proof.
-
-## Architecture Enforcement
-
-- dependency-cruiser checks cycles and legal direction;
-- ESLint checks surfaces, purity, framework effects, SQL placement, and
-  throwable ownership;
-- topology tests check identities, collisions, profiles, contracts, schemas,
-  generated freshness, and exact cell locality;
-- typed executable proof checks named operation scenarios; and
-- TypeScript checks public assembly and capability conformance.
-
-Run:
+Dependency-cruiser checks import direction and source-vs-build resolution.
+ESLint checks language rules, surfaces, purity, SQL placement, and throwable
+ownership. TypeScript checks types and package composition. Runtime and
+cross-owner tests prove behavior that static tools cannot.
 
 ```bash
 pnpm architecture:check
@@ -322,18 +206,19 @@ pnpm typecheck
 pnpm test:topology
 ```
 
-## Adding One Operation
+For a feature, also run its owner tests, affected host tests, PostgreSQL
+integration proof, and browser smoke path as applicable. Architecture checks
+are not runtime-equivalence or production-readiness proof.
 
-1. Name the System or Experience that owns the meaning.
-2. Create one verb-object cell and versioned contract.
-3. Put pure decisions and explicit effects in that cell.
-4. Add cell-local unit, contract, protocol, component, and PostgreSQL proof as
-   applicable.
-5. Register the cell in its owner's explicit public assembly.
-6. Select it in topology and declare its boundary profile.
-7. Run `pnpm architecture:generate`.
-8. Run the affected architecture, lint, type, test, PostgreSQL, and build
-   gates.
+## Adding an operation
 
-If ownership cannot be named, the design is not ready. Do not hide ambiguity
-in `common`, `shared`, `utils`, `services`, a host, or topology.
+1. Name the semantic owner and verb-object operation.
+2. Add the contract, decision, executor, persistence, and protocol files that
+   the operation actually needs.
+3. Register it in the owner's explicit assembly.
+4. Add it to the direct topology composition only when deployed.
+5. Add local unit/contract/integration proof.
+6. Run dependency-cruiser, ESLint, TypeScript, and affected behavior gates.
+
+If the path is difficult to traverse, improve ownership or naming before adding
+another abstraction.

@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { purgeExpiredWebhookReceiptsContract } from './contract.ts';
 import {
   makeExecutePurgeExpiredWebhookReceipts,
@@ -11,11 +11,12 @@ import {
   type PurgeExpiredWebhookReceiptsResult,
 } from './types.ts';
 
-export const purgeExpiredWebhookReceiptsCellDeclaration = declareCommandCell<
+export const purgeExpiredWebhookReceiptsCellDeclaration = defineOperation<
   PurgeExpiredWebhookReceiptsInput,
   PurgeExpiredWebhookReceiptsResult,
   PurgeExpiredWebhookReceiptsExpectedFailure
 >({
+  kind: 'command',
   id: purgeExpiredWebhookReceiptsOperationId,
   authentication: 'none',
   contract: purgeExpiredWebhookReceiptsContract,
@@ -30,7 +31,7 @@ export const purgeExpiredWebhookReceiptsCellDeclaration = declareCommandCell<
 export const makePurgeExpiredWebhookReceiptsCell = (
   deps: PurgeExpiredWebhookReceiptsDependencies,
 ) =>
-  bindCell(
+  defineOperation(
     purgeExpiredWebhookReceiptsCellDeclaration,
     makeExecutePurgeExpiredWebhookReceipts(deps),
   );

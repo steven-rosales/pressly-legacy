@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { resolveExactSourceCustomerContract } from './contract.ts';
 import { makeExecuteResolveExactSourceCustomer } from './execute.ts';
 import { resolveExactSourceCustomerCommandHash } from './idempotency.ts';
@@ -10,11 +10,12 @@ import {
   type ResolveExactSourceCustomerResult,
 } from './types.ts';
 
-export const resolveExactSourceCustomerCellDeclaration = declareCommandCell<
+export const resolveExactSourceCustomerCellDeclaration = defineOperation<
   ResolveExactSourceCustomerCommand,
   ResolveExactSourceCustomerResult,
   ResolveExactSourceCustomerExpectedFailure
 >({
+  kind: 'command',
   id: resolveExactSourceCustomerOperationId,
   authentication: 'none',
   contract: resolveExactSourceCustomerContract,
@@ -37,7 +38,7 @@ export const resolveExactSourceCustomerCellDeclaration = declareCommandCell<
 export const makeResolveExactSourceCustomerCell = (
   repository: ResolveExactSourceCustomerRepository,
 ) =>
-  bindCell(
+  defineOperation(
     resolveExactSourceCustomerCellDeclaration,
     makeExecuteResolveExactSourceCustomer(repository),
   );

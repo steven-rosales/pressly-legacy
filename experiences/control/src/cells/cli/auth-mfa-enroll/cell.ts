@@ -1,8 +1,9 @@
 import { enrollmentSurface } from "./cli.ts"
 import { enrollmentContract } from "./contract.ts"
-import { declareCommandCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
-export const adminCliAuthMfaEnrollCellDeclaration = declareCommandCell({
+export const adminCliAuthMfaEnrollCellDeclaration = defineOperation({
+  kind: "command",
   id: "control.cli-auth-mfa-enroll.v1",
   authentication: "none",
   contract: enrollmentContract,

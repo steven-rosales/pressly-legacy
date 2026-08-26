@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import type { CustomerReferenceV1Capability } from '@pressly/customers-system/capabilities/customer-reference-v1';
 import type { PostgresDatabase } from '@pressly/postgres/client';
 import type { Clock } from '@pressly/time';
@@ -17,11 +17,12 @@ import type {
 
 export const correctOrderOperationId = 'orders.correct-order.v1';
 
-export const correctOrderCellDeclaration = declareCommandCell<
+export const correctOrderCellDeclaration = defineOperation<
   CorrectOrderCommand,
   OrderMutationResult,
   CorrectOrderExpectedFailure
 >({
+  kind: 'command',
   id: correctOrderOperationId,
   authentication: 'required',
   contract: correctOrderContract,
@@ -50,7 +51,7 @@ export const makeCorrectOrderCell = (dependencies: {
   clock: Clock;
   customerReferenceV1: CustomerReferenceV1Capability;
 }) =>
-  bindCell(
+  defineOperation(
     correctOrderCellDeclaration,
     makeExecuteCorrectOrder({
       writer: makeCorrectOrderPostgresWriter(dependencies),

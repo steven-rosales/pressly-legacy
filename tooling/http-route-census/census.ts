@@ -44,8 +44,8 @@ export type HttpRouteCensusResult = Readonly<{
 }>;
 
 export type HttpRouteMountCensusReport = Readonly<{
-  proof: 'generated-http-route-mount-census';
-  catalogSource: '@pressly/generated/http-catalog:httpRouteManifest';
+  proof: 'handwritten-http-route-mount-census';
+  catalogSource: '@pressly/topology/http:httpRouteManifest';
   scope: 'mounted HTTP dispatch reachability only';
   origin: string;
   routeCount: number;
@@ -115,7 +115,7 @@ export const makeHttpRouteCensusRequests = (
       headers: Object.freeze({
         accept: 'application/json',
         ...(hasJsonBody ? { 'content-type': 'application/json' } : {}),
-        'x-pressly-proof': 'generated-http-route-mount-census',
+        'x-pressly-proof': 'handwritten-http-route-mount-census',
       }),
       body: hasJsonBody ? '{}' : undefined,
     });
@@ -210,8 +210,8 @@ export const runHttpRouteMountCensus = async (input: {
   ).length;
 
   return Object.freeze({
-    proof: 'generated-http-route-mount-census',
-    catalogSource: '@pressly/generated/http-catalog:httpRouteManifest',
+    proof: 'handwritten-http-route-mount-census',
+    catalogSource: '@pressly/topology/http:httpRouteManifest',
     scope: 'mounted HTTP dispatch reachability only',
     origin: origin.origin,
     routeCount: results.length,
@@ -225,7 +225,7 @@ export const runHttpRouteMountCensus = async (input: {
     passed: failureCount === 0,
     routes: frozenResults,
     limitations: Object.freeze([
-      'A success or unauthenticated boundary rejection proves only that the generated method and path reached mounted dispatch.',
+      'A success or unauthenticated boundary rejection proves only that the topology method and path reached mounted dispatch.',
       'This census does not prove authorization, validation, persistence, or business behavior; those require their focused integration and browser proofs.',
     ]),
   });

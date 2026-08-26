@@ -18,7 +18,7 @@ const operation: ReplaceShiftSelectionClientOperation = {
 }
 
 describe("replace shift selection client", () => {
-  it("uses generated metadata and canonical result validation", async () => {
+  it("uses declared metadata and canonical result validation", async () => {
     const result = {
       selection: {
         productionShiftId: "10000000-0000-4000-8000-000000000001",

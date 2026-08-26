@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { confirmMfaEnrollmentContract } from './contract.ts';
 import type { ConfirmMfaEnrollment } from './confirm-mfa-enrollment.usecase.ts';
 import {
@@ -8,11 +8,12 @@ import {
   type OperationOutput,
 } from '../../../model/boundary/cell-contract.ts';
 
-export const confirmMfaEnrollmentCellDeclaration = declareCommandCell<
+export const confirmMfaEnrollmentCellDeclaration = defineOperation<
   OperationInput<ConfirmMfaEnrollment>,
   OperationOutput<ConfirmMfaEnrollment>,
   OperationFailure<ConfirmMfaEnrollment>
 >({
+  kind: 'command',
   id: 'access.confirm-mfa-enrollment.v1',
   authentication: 'required',
   contract: confirmMfaEnrollmentContract,
@@ -27,4 +28,7 @@ export const confirmMfaEnrollmentCellDeclaration = declareCommandCell<
 });
 
 export const makeConfirmMfaEnrollmentCell = (operation: ConfirmMfaEnrollment) =>
-  bindCell(confirmMfaEnrollmentCellDeclaration, resultOperation(operation));
+  defineOperation(
+    confirmMfaEnrollmentCellDeclaration,
+    resultOperation(operation),
+  );

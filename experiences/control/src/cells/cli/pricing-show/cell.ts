@@ -1,8 +1,9 @@
 import { showSurface } from "./cli.ts"
 import { showContract } from "./contract.ts"
-import { declareQueryCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
-export const adminCliPricingShowCellDeclaration = declareQueryCell({
+export const adminCliPricingShowCellDeclaration = defineOperation({
+  kind: "query",
   id: "control.cli-pricing-show.v1",
   authentication: "none",
   contract: showContract,

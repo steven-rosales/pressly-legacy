@@ -1,5 +1,5 @@
 import type { OrderLocationFactsV1Capability } from '@pressly/access-system/capabilities/order-location-facts-v1';
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import type { ResolveExactSourceCustomerV1Capability } from '@pressly/customers-system/capabilities/resolve-exact-source-customer-v1';
 import type { PostgresDatabase } from '@pressly/postgres/client';
 import type { Clock } from '@pressly/time';
@@ -19,11 +19,12 @@ import type {
 export const acceptIncomingOrderProposalOperationId =
   'orders.accept-incoming-order-proposal.v1';
 
-export const acceptIncomingOrderProposalCellDeclaration = declareCommandCell<
+export const acceptIncomingOrderProposalCellDeclaration = defineOperation<
   AcceptIncomingOrderProposalCommand,
   IncomingOrderProposalDecisionResult,
   AcceptIncomingOrderProposalExpectedFailure
 >({
+  kind: 'command',
   id: acceptIncomingOrderProposalOperationId,
   authentication: 'required',
   contract: acceptIncomingOrderProposalContract,
@@ -52,7 +53,7 @@ export const makeAcceptIncomingOrderProposalCell = (dependencies: {
   orderLocationFactsV1: OrderLocationFactsV1Capability;
   resolveExactSourceCustomerV1: ResolveExactSourceCustomerV1Capability;
 }) =>
-  bindCell(
+  defineOperation(
     acceptIncomingOrderProposalCellDeclaration,
     makeExecuteAcceptIncomingOrderProposal({
       writer: makeAcceptIncomingOrderProposalPostgresWriter(dependencies),

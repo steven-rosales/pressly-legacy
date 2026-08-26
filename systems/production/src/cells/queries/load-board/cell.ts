@@ -1,4 +1,4 @@
-import { bindCell, declareQueryCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import type { ProductionBoard } from '../../../read-models/production-board/contract.ts';
 import { loadBoardContract } from './contract.ts';
 import { makeExecuteLoadBoard, type LoadBoardDependencies } from './execute.ts';
@@ -8,11 +8,12 @@ import {
   type LoadBoardInput,
 } from './types.ts';
 
-export const loadBoardCellDeclaration = declareQueryCell<
+export const loadBoardCellDeclaration = defineOperation<
   LoadBoardInput,
   ProductionBoard,
   LoadBoardExpectedFailure
 >({
+  kind: 'query',
   id: loadBoardOperationId,
   contract: loadBoardContract,
   authorization: {
@@ -26,4 +27,4 @@ export const loadBoardCellDeclaration = declareQueryCell<
 });
 
 export const makeLoadBoardCell = (dependencies: LoadBoardDependencies) =>
-  bindCell(loadBoardCellDeclaration, makeExecuteLoadBoard(dependencies));
+  defineOperation(loadBoardCellDeclaration, makeExecuteLoadBoard(dependencies));

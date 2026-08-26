@@ -5,7 +5,7 @@ import {
   invitationPeerFailure,
 } from "../../../management/invitations/failure.ts"
 import { acceptExistingControlInvitationCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 type AcceptExecute = AccessExecute<"acceptWorkforceInvitation">
 
@@ -28,24 +28,27 @@ const projectAcceptance = (value: RawAcceptance): InvitationAcceptance => ({
 export const makeAcceptExistingControlInvitationCell = (
   access: AcceptExecute,
 ) =>
-  bindCell(acceptExistingControlInvitationCellDeclaration, async (input) => {
-    if (input.identityMode !== "existing_identity")
-      return {
-        kind: "failure",
-        failure: invitationModeFailure(
-          "Existing identity acceptance requires existing_identity mode.",
-        ),
-      }
-    const outcome = await access.execute({
-      rawToken: input.acceptanceToken,
-      idempotencyKey: input.idempotencyKey,
-      acceptance: {
-        kind: "existing_identity",
-        authenticatedIdentityId: input.context.actor.identityId,
-        authenticatedSessionId: input.context.actor.sessionId,
-      },
-    })
-    return outcome.kind === "failure"
-      ? { kind: "failure", failure: invitationPeerFailure(outcome.failure) }
-      : { kind: "success", value: projectAcceptance(outcome.value) }
-  })
+  defineOperation(
+    acceptExistingControlInvitationCellDeclaration,
+    async (input) => {
+      if (input.identityMode !== "existing_identity")
+        return {
+          kind: "failure",
+          failure: invitationModeFailure(
+            "Existing identity acceptance requires existing_identity mode.",
+          ),
+        }
+      const outcome = await access.execute({
+        rawToken: input.acceptanceToken,
+        idempotencyKey: input.idempotencyKey,
+        acceptance: {
+          kind: "existing_identity",
+          authenticatedIdentityId: input.context.actor.identityId,
+          authenticatedSessionId: input.context.actor.sessionId,
+        },
+      })
+      return outcome.kind === "failure"
+        ? { kind: "failure", failure: invitationPeerFailure(outcome.failure) }
+        : { kind: "success", value: projectAcceptance(outcome.value) }
+    },
+  )

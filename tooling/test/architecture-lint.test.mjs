@@ -27,14 +27,22 @@ describe('repository language lint', () => {
       await import('../../tooling/eslint/type-aware.config.mjs').then(
         ({ default: configuration }) => configuration,
       );
+    const typeAwareRunner = await import('node:fs/promises').then(
+      ({ readFile }) =>
+        readFile(
+          path.join(repositoryRoot, 'tooling/eslint/run-type-aware.mjs'),
+          'utf8',
+        ),
+    );
     const typeAwareRules = typeAwareConfig.flatMap((entry) =>
       Object.entries(entry.rules ?? {}),
     );
 
     expect(manifest.scripts.lint).toContain('pnpm lint:type-aware');
     expect(manifest.scripts['lint:type-aware']).toContain(
-      'tooling/scripts/run-type-aware-lint.mjs',
+      'tooling/eslint/run-type-aware.mjs',
     );
+    expect(typeAwareRunner).toContain('tooling/eslint/type-aware.config.mjs');
     expect(typeAwareRules).toEqual(
       expect.arrayContaining([
         [
@@ -46,7 +54,7 @@ describe('repository language lint', () => {
     );
   });
 
-  it('keeps host source free of business imports and generated domain identities', async () => {
+  it('keeps host source free of business imports and topology domain identities', async () => {
     expect(
       ruleIds(
         await lint(
@@ -74,8 +82,8 @@ describe('repository language lint', () => {
 
     expect(
       await lint(
-        'hosts/jobs/src/generated-selection.fixture.ts',
-        `import { observabilityOperationIdForJobLabel } from '@pressly/generated/observability-catalog'; export const select = (label: string) => observabilityOperationIdForJobLabel(label);`,
+        'hosts/jobs/src/topology-selection.fixture.ts',
+        `import { observabilityOperationIdForJobLabel } from '@pressly/topology/observability'; export const select = (label: string) => observabilityOperationIdForJobLabel(label);`,
       ),
     ).toEqual([]);
   });

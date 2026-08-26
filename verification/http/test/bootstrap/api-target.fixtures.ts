@@ -1,5 +1,5 @@
 import type { RequestHandler } from 'express';
-import { httpBoundaryProviderTokens } from '@pressly/generated/http-catalog';
+import { httpBoundaryProviderTokens } from '@pressly/topology/http';
 import {
   apiJsonDocument64kbProvider,
   apiJsonDocumentProvider,

@@ -1,4 +1,4 @@
-import { bindCell, declareQueryCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import type { CustomerSummary } from '../../../model/customer.ts';
 import { getCustomerContract } from './contract.ts';
 import { makeExecuteGetCustomer } from './execute.ts';
@@ -9,11 +9,12 @@ import {
   type GetCustomerRepository,
 } from './types.ts';
 
-export const getCustomerCellDeclaration = declareQueryCell<
+export const getCustomerCellDeclaration = defineOperation<
   GetCustomerQuery,
   CustomerSummary,
   GetCustomerExpectedFailure
 >({
+  kind: 'query',
   id: getCustomerOperationId,
   authentication: 'none',
   contract: getCustomerContract,
@@ -22,4 +23,7 @@ export const getCustomerCellDeclaration = declareQueryCell<
 });
 
 export const makeGetCustomerCell = (repository: GetCustomerRepository) =>
-  bindCell(getCustomerCellDeclaration, makeExecuteGetCustomer(repository));
+  defineOperation(
+    getCustomerCellDeclaration,
+    makeExecuteGetCustomer(repository),
+  );

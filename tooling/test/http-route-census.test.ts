@@ -1,4 +1,4 @@
-import { httpRouteManifest } from '../../generated/http-catalog.ts';
+import { httpRouteManifest } from '../../topology/http.ts';
 import {
   makeHttpRouteCensusRequests,
   runHttpRouteMountCensus,
@@ -14,8 +14,8 @@ const route = (
   path: string,
 ): HttpRouteManifestEntry => Object.freeze({ operationId, method, path });
 
-describe('generated HTTP route mount census', () => {
-  it('derives one deterministic request from every generated catalog route', () => {
+describe('topology HTTP route mount census', () => {
+  it('derives one deterministic request from every handwritten topology route', () => {
     const requests = makeHttpRouteCensusRequests(httpRouteManifest);
 
     expect(requests).toHaveLength(httpRouteManifest.length);
@@ -59,7 +59,7 @@ describe('generated HTTP route mount census', () => {
     });
   });
 
-  it('fails closed on an unknown parameter shape or duplicate generated route', () => {
+  it('fails closed on an unknown parameter shape or duplicate topology route', () => {
     expect(() => substituteHttpRoutePathParameters('/reports/:day')).toThrow(
       'has no deterministic valid-shaped census value',
     );

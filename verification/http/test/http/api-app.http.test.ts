@@ -542,7 +542,7 @@ describe('API app HTTP boundary', () => {
     expect(harness.execute).not.toHaveBeenCalled();
   });
 
-  it('mounts the generated production subscription behind authentication', async () => {
+  it('mounts the topology production subscription behind authentication', async () => {
     const harness = makeRuntime();
     const currentRevision = vi.fn(async () => 4);
     const subscribe = vi.fn(() => () => undefined);

@@ -129,7 +129,7 @@ describe('offline production topology smoke harness', () => {
       'node --import tsx tooling/postgres/migrate.ts',
       'node --import tsx tooling/http-route-census/main.ts',
       '--origin http://api:4000',
-      'generated-http-route-mount-census',
+      'handwritten-http-route-mount-census',
       'mounted HTTP dispatch reachability only',
       'docker stats --no-stream',
     ])
@@ -390,7 +390,7 @@ describe('offline production topology smoke harness', () => {
     expect(report).not.toContain('LPMS_CSRF_TOKEN');
   });
 
-  it('runs the generated HTTP route mount census only after the composed API is healthy', () => {
+  it('runs the HTTP route mount census only after the composed API is healthy', () => {
     const script = readFileSync(smokeScript, 'utf8');
     const execution = script.slice(
       script.indexOf("echo '[v2] starting release-a and proving Caddy routes'"),
@@ -407,7 +407,7 @@ describe('offline production topology smoke harness', () => {
     expect(healthIndex).toBeGreaterThan(composeUpIndex);
     expect(censusIndex).toBeGreaterThan(healthIndex);
     expect(script).toContain(
-      "catalogSource !== '@pressly/generated/http-catalog:httpRouteManifest'",
+      "catalogSource !== '@pressly/topology/http:httpRouteManifest'",
     );
     expect(script).toContain('report.routes.length !== report.routeCount');
     expect(script).toContain('route.status === 404');

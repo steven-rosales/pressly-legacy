@@ -44,7 +44,7 @@ const result = {
 } satisfies ScheduleProposal
 
 describe("Processor load-schedule experience", () => {
-  it("renders both generated path parameters and retains the canonical decoder", async () => {
+  it("renders both declared path parameters and retains the canonical decoder", async () => {
     const request = vi
       .fn<LoadScheduleRequestTransport>()
       .mockResolvedValue(result)

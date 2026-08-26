@@ -2,7 +2,7 @@ import type { AdminCliPricingDependencies } from "../../../cli/pricing-dependenc
 import type { CliFailure } from "../../../cli/model.ts"
 import { readRequiredSession } from "../../../cli/model.ts"
 import { adminCliPricingShowCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 const withPricingSession = async <Output>(
   dependencies: AdminCliPricingDependencies,
@@ -26,7 +26,7 @@ const withPricingSession = async <Output>(
 export const makeAdminCliPricingShowCell = (
   dependencies: AdminCliPricingDependencies,
 ) =>
-  bindCell(adminCliPricingShowCellDeclaration, (input) =>
+  defineOperation(adminCliPricingShowCellDeclaration, (input) =>
     withPricingSession(dependencies, (accessToken) =>
       dependencies.api.loadCatalog(accessToken, input.serviceSlug),
     ),

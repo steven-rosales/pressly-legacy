@@ -5,13 +5,14 @@ import type {
 } from "../../../auth/model/schemas.ts"
 import { controlCompleteMfaChallengeContract } from "./contract.ts"
 import { challengeSurface } from "./http.ts"
-import { declareCommandCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
-export const controlCompleteMfaChallengeCellDeclaration = declareCommandCell<
+export const controlCompleteMfaChallengeCellDeclaration = defineOperation<
   CookieChallengeInput,
   ControlSessionOutput,
   ControlSessionFailure
 >({
+  kind: "command",
   id: "control.complete-mfa-challenge.v1",
   authentication: "none",
   contract: controlCompleteMfaChallengeContract,

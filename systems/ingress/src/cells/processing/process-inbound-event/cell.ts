@@ -1,4 +1,5 @@
-import { bindCell, declareReactionCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
+import type { CellDefinition } from '@pressly/cells';
 import type { WebhookEventReadyV1 } from '../../../contracts/webhook-event-ready-v1.ts';
 import { processInboundEventContract } from './contract.ts';
 import {
@@ -14,11 +15,12 @@ import { processInboundEventOperationId } from './types.ts';
 import { processInboundEventJobSurface } from './job.ts';
 import { processInboundEventConsumedMessages } from './message.ts';
 
-export const processInboundEventCellDeclaration = declareReactionCell<
+export const processInboundEventCellDeclaration = defineOperation<
   WebhookEventReadyV1,
   ProcessInboundEventResult,
   ProcessInboundEventExpectedFailure
 >({
+  kind: 'reaction',
   id: processInboundEventOperationId,
   authentication: 'none',
   contract: processInboundEventContract,
@@ -42,15 +44,13 @@ export const processInboundEventCellDeclaration = declareReactionCell<
 
 export const makeProcessInboundEventCell = (
   deps: ProcessInboundEventDependencies,
-): ReturnType<
-  typeof bindCell<
-    'reaction',
-    WebhookEventReadyV1,
-    ProcessInboundEventResult,
-    ProcessInboundEventExpectedFailure
-  >
+): CellDefinition<
+  'reaction',
+  WebhookEventReadyV1,
+  ProcessInboundEventResult,
+  ProcessInboundEventExpectedFailure
 > =>
-  bindCell(
+  defineOperation(
     processInboundEventCellDeclaration,
     makeExecuteProcessInboundEvent(deps) satisfies ExecuteProcessInboundEvent,
   );

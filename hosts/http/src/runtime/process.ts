@@ -1,6 +1,9 @@
 import { resolve } from 'node:path';
 import { config as loadEnvironmentFile } from 'dotenv';
-import { nullErrorReporter } from '@pressly/observability';
+import {
+  nullErrorReporter,
+  type RuntimeObservabilityCatalog,
+} from '@pressly/observability';
 import {
   initializeSentry,
   makeApiRuntimeLogger,
@@ -41,6 +44,7 @@ export const readHttpProcessEnvironment = (): NodeJS.ProcessEnv => {
 
 export const makeHttpProcessRuntime = (
   configuration: HttpProcessConfiguration,
+  catalog: RuntimeObservabilityCatalog,
 ): HttpProcessRuntime => {
   const sentryConfiguration = {
     enabled: configuration.observability.sentry.enabled,
@@ -61,6 +65,7 @@ export const makeHttpProcessRuntime = (
     : nullErrorReporter;
   const signals = makeApiSignalSinks({
     logger,
+    catalog,
     sentryEnabled: configuration.observability.sentry.enabled,
     metricsEnabled: configuration.features.metricsEnabled,
   });

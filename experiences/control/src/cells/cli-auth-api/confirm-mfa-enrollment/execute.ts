@@ -1,7 +1,7 @@
 import type { AccessExecute, AccessInput } from "../../../auth/model/access.ts"
 import type { ConfirmMfaInput } from "../../../auth/model/schemas.ts"
 import { controlCliAuthApiConfirmMfaEnrollmentCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 const confirmAccessInput = (
   input: ConfirmMfaInput,
@@ -15,7 +15,7 @@ const confirmAccessInput = (
 export const makeControlCliAuthApiConfirmMfaEnrollmentCell = (
   access: AccessExecute<"confirmMfaEnrollment">,
 ) =>
-  bindCell(
+  defineOperation(
     controlCliAuthApiConfirmMfaEnrollmentCellDeclaration,
     async (input) => {
       const outcome = await access.execute(confirmAccessInput(input))

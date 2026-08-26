@@ -5,13 +5,14 @@ import type {
 } from "../../../management/invitations/contracts.ts"
 import { acceptExistingMfaContract } from "./contract.ts"
 import { mfaSurface } from "./http.ts"
-import { declareCommandCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
-export const acceptExistingMfaCellDeclaration = declareCommandCell<
+export const acceptExistingMfaCellDeclaration = defineOperation<
   AcceptExistingMfaInput,
   InvitationBootstrapOutput,
   InvitationAcceptanceFailure
 >({
+  kind: "command",
   id: "control.accept-existing-invitation-mfa.v1",
   authentication: "none",
   contract: acceptExistingMfaContract,

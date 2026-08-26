@@ -4,7 +4,7 @@ import {
   decode,
   defineBoundaryContract,
   defineEventStreamCatalog,
-  defineSubscriptionCell,
+  defineOperation,
   defineSubscriptionContract,
   eventStream,
   type SubscriptionObserver,
@@ -146,7 +146,8 @@ const makeCatalog = (input: {
   }>;
 }) =>
   defineEventStreamCatalog([
-    defineSubscriptionCell({
+    defineOperation({
+      kind: 'subscription',
       id: 'example.subscribe.v1',
       contract: contract(input.events),
       authorization: {

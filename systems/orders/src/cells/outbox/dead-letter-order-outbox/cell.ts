@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { deadLetterOrderOutboxContract } from './contract.ts';
 import {
   makeExecuteDeadLetterOrderOutbox,
@@ -11,11 +11,12 @@ import {
   type DeadLetterOrderOutboxResult,
 } from './types.ts';
 
-export const deadLetterOrderOutboxCellDeclaration = declareCommandCell<
+export const deadLetterOrderOutboxCellDeclaration = defineOperation<
   DeadLetterOrderOutboxCommand,
   DeadLetterOrderOutboxResult,
   DeadLetterOrderOutboxExpectedFailure
 >({
+  kind: 'command',
   id: deadLetterOrderOutboxOperationId,
   authentication: 'none',
   contract: deadLetterOrderOutboxContract,
@@ -34,7 +35,7 @@ export const deadLetterOrderOutboxCellDeclaration = declareCommandCell<
 export const makeDeadLetterOrderOutboxCell = (
   dependencies: DeadLetterOrderOutboxDependencies,
 ) =>
-  bindCell(
+  defineOperation(
     deadLetterOrderOutboxCellDeclaration,
     makeExecuteDeadLetterOrderOutbox(dependencies),
   );

@@ -1,4 +1,4 @@
-import { customerWeb } from '@pressly/generated-runtime/browser/customer';
+import { customerWeb } from '@pressly/topology/browser/customer';
 
 export const metadata = customerWeb.servicesPricing.metadata;
 export default function ServicesPricingPage() {

@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import type { AccessExecute } from '../../../auth/model/access.ts';
 import {
   type MfaMutation,
@@ -8,11 +8,12 @@ import { customerRemoveMfaContract } from './contract.ts';
 import { makeExecuteCustomerRemoveMfa } from './execute.ts';
 import { customerRemoveMfaHttpSurface } from './http.ts';
 
-export const customerRemoveMfaCellDeclaration = declareCommandCell<
+export const customerRemoveMfaCellDeclaration = defineOperation<
   RemoveMfaInput,
   MfaMutation,
   never
 >({
+  kind: 'command',
   id: 'customer.remove-mfa.v1',
   contract: customerRemoveMfaContract,
   authorization: {
@@ -27,7 +28,7 @@ export const customerRemoveMfaCellDeclaration = declareCommandCell<
 });
 
 export const makeCustomerRemoveMfaCell = (access: AccessExecute<'removeMfa'>) =>
-  bindCell(
+  defineOperation(
     customerRemoveMfaCellDeclaration,
     makeExecuteCustomerRemoveMfa(access),
   );

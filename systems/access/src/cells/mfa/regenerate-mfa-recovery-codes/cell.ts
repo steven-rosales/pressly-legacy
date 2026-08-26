@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { regenerateMfaRecoveryCodesContract } from './contract.ts';
 import type { RegenerateMfaRecoveryCodes } from './regenerate-mfa-recovery-codes.usecase.ts';
 import {
@@ -8,11 +8,12 @@ import {
   type OperationOutput,
 } from '../../../model/boundary/cell-contract.ts';
 
-export const regenerateMfaRecoveryCodesCellDeclaration = declareCommandCell<
+export const regenerateMfaRecoveryCodesCellDeclaration = defineOperation<
   OperationInput<RegenerateMfaRecoveryCodes>,
   OperationOutput<RegenerateMfaRecoveryCodes>,
   OperationFailure<RegenerateMfaRecoveryCodes>
 >({
+  kind: 'command',
   id: 'access.regenerate-mfa-recovery-codes.v1',
   authentication: 'required',
   contract: regenerateMfaRecoveryCodesContract,
@@ -29,7 +30,7 @@ export const regenerateMfaRecoveryCodesCellDeclaration = declareCommandCell<
 export const makeRegenerateMfaRecoveryCodesCell = (
   operation: RegenerateMfaRecoveryCodes,
 ) =>
-  bindCell(
+  defineOperation(
     regenerateMfaRecoveryCodesCellDeclaration,
     successOperation(operation),
   );

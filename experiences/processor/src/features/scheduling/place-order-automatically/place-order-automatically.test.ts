@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest"
 import { makePlaceOrderAutomaticallyClient } from "./client.ts"
 
 describe("Processor automatic-placement client", () => {
-  it("uses only generated method/path metadata and the owning wire schema", async () => {
+  it("uses only declared method/path metadata and the owning wire schema", async () => {
     const result = {
       status: "not_placed" as const,
       mode: "automatic" as const,

@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { recordOrderIntakeContract } from './contract.ts';
 import { recordOrderIntakeOperationId } from './decide.ts';
 import {
@@ -12,11 +12,12 @@ import type {
   RecordOrderIntakeResult,
 } from './types.ts';
 
-export const recordOrderIntakeCellDeclaration = declareCommandCell<
+export const recordOrderIntakeCellDeclaration = defineOperation<
   RecordOrderIntakeCommand,
   RecordOrderIntakeResult,
   RecordOrderIntakeExpectedFailure
 >({
+  kind: 'command',
   id: recordOrderIntakeOperationId,
   contract: recordOrderIntakeContract,
   authorization: {
@@ -39,7 +40,7 @@ export const recordOrderIntakeCellDeclaration = declareCommandCell<
 export const makeRecordOrderIntakeCell = <StoredWorkEvent>(
   deps: RecordOrderIntakeDependencies<StoredWorkEvent>,
 ) =>
-  bindCell(
+  defineOperation(
     recordOrderIntakeCellDeclaration,
     makeExecuteRecordOrderIntake(deps),
   );

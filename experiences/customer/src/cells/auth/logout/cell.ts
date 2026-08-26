@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import type { AccessExecute } from '../../../auth/model/access.ts';
 import {
   type BearerInput,
@@ -8,11 +8,12 @@ import { customerLogoutContract } from './contract.ts';
 import { makeExecuteCustomerLogout } from './execute.ts';
 import { customerLogoutHttpSurface } from './http.ts';
 
-export const customerLogoutCellDeclaration = declareCommandCell<
+export const customerLogoutCellDeclaration = defineOperation<
   BearerInput,
   LogoutOutput,
   never
 >({
+  kind: 'command',
   id: 'customer.logout.v1',
   authentication: 'none',
   contract: customerLogoutContract,
@@ -24,4 +25,8 @@ export const customerLogoutCellDeclaration = declareCommandCell<
 
 export const makeCustomerLogoutCell = (
   access: AccessExecute<'revokeSession'>,
-) => bindCell(customerLogoutCellDeclaration, makeExecuteCustomerLogout(access));
+) =>
+  defineOperation(
+    customerLogoutCellDeclaration,
+    makeExecuteCustomerLogout(access),
+  );

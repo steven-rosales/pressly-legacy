@@ -4,7 +4,7 @@
     "declaration": false,
     "declarationMap": false,
     "noEmit": true,
-    "rootDir": ".",
+    "rootDir": "../..",
     "sourceMap": false,
     "types": ["node"]
   },

@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { assignStageMachinesContract } from './contract.ts';
 import { assignStageMachinesOperationId } from './decide.ts';
 import {
@@ -12,11 +12,12 @@ import type {
   AssignStageMachinesResult,
 } from './types.ts';
 
-export const assignStageMachinesCellDeclaration = declareCommandCell<
+export const assignStageMachinesCellDeclaration = defineOperation<
   AssignStageMachinesCommand,
   AssignStageMachinesResult,
   AssignStageMachinesExpectedFailure
 >({
+  kind: 'command',
   id: assignStageMachinesOperationId,
   contract: assignStageMachinesContract,
   authorization: {
@@ -39,7 +40,7 @@ export const assignStageMachinesCellDeclaration = declareCommandCell<
 export const makeAssignStageMachinesCell = <StoredWorkEvent>(
   deps: AssignStageMachinesDependencies<StoredWorkEvent>,
 ) =>
-  bindCell(
+  defineOperation(
     assignStageMachinesCellDeclaration,
     makeExecuteAssignStageMachines(deps),
   );

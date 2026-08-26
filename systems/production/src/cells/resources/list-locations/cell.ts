@@ -1,5 +1,5 @@
 import type { ListProductionLocationsResult } from './boundary.ts';
-import { bindCell, declareQueryCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { listLocationsContract } from './contract.ts';
 import {
   makeExecuteListLocations,
@@ -12,11 +12,12 @@ import {
   type ListLocationsInput,
 } from './types.ts';
 
-export const listLocationsCellDeclaration = declareQueryCell<
+export const listLocationsCellDeclaration = defineOperation<
   ListLocationsInput,
   ListProductionLocationsResult,
   ListLocationsExpectedFailure
 >({
+  kind: 'query',
   id: listLocationsOperationId,
   authentication: 'required',
   contract: listLocationsContract,
@@ -29,7 +30,7 @@ export const listLocationsCellDeclaration = declareQueryCell<
 export const makeListLocationsCell = (
   dependencies: ListLocationsDependencies,
 ) =>
-  bindCell(
+  defineOperation(
     listLocationsCellDeclaration,
     makeExecuteListLocations(dependencies),
   );

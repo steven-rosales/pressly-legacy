@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { startScheduleContract } from './contract.ts';
 import { startScheduleOperationId } from './decide.ts';
 import {
@@ -12,11 +12,12 @@ import type {
   StartScheduleResult,
 } from './types.ts';
 
-export const startScheduleCellDeclaration = declareCommandCell<
+export const startScheduleCellDeclaration = defineOperation<
   StartScheduleCommand,
   StartScheduleResult,
   StartScheduleExpectedFailure
 >({
+  kind: 'command',
   id: startScheduleOperationId,
   contract: startScheduleContract,
   authorization: {
@@ -38,4 +39,5 @@ export const startScheduleCellDeclaration = declareCommandCell<
 
 export const makeStartScheduleCell = <StoredWorkEvent>(
   deps: StartScheduleDependencies<StoredWorkEvent>,
-) => bindCell(startScheduleCellDeclaration, makeExecuteStartSchedule(deps));
+) =>
+  defineOperation(startScheduleCellDeclaration, makeExecuteStartSchedule(deps));

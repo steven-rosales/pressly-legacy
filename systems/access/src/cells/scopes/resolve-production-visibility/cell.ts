@@ -1,4 +1,4 @@
-import { bindCell, declareQueryCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { resolveProductionVisibilityContract } from './contract.ts';
 import type { ResolveProductionVisibility } from './resolve-production-visibility.usecase.ts';
 import {
@@ -8,11 +8,12 @@ import {
   type OperationOutput,
 } from '../../../model/boundary/cell-contract.ts';
 
-export const resolveProductionVisibilityCellDeclaration = declareQueryCell<
+export const resolveProductionVisibilityCellDeclaration = defineOperation<
   OperationInput<ResolveProductionVisibility>,
   OperationOutput<ResolveProductionVisibility>,
   OperationFailure<ResolveProductionVisibility>
 >({
+  kind: 'query',
   id: 'access.resolve-production-visibility.v1',
   authentication: 'required',
   contract: resolveProductionVisibilityContract,
@@ -24,7 +25,7 @@ export const resolveProductionVisibilityCellDeclaration = declareQueryCell<
 export const makeResolveProductionVisibilityCell = (
   operation: ResolveProductionVisibility,
 ) =>
-  bindCell(
+  defineOperation(
     resolveProductionVisibilityCellDeclaration,
     successOperation(operation),
   );

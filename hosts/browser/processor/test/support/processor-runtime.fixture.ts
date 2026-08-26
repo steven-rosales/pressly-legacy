@@ -4,7 +4,7 @@ import {
   type ProcessorBrowserHostEffects,
   type ProcessorConnectionStateObserver,
   type ProcessorRequestFailureObserver,
-} from '@pressly/generated-runtime/browser/processor';
+} from '@pressly/topology/browser';
 import { makeBrowserLocationPreferenceAdapter } from '../../src/runtime/browser-location-preference.adapter.ts';
 import {
   makeBrowserProductionChangeAdapter,

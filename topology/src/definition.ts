@@ -7,52 +7,26 @@ import {
   type HttpBoundaryProfile,
 } from '@pressly/cells';
 
-export type CellSourceReference = Readonly<{
-  moduleSpecifier: string;
-  manifestExportName: string;
-  assemblyExportName: string;
-  assemblyKey: string;
-}>;
-
-export type StaticCellManifest = CellManifest & Readonly<{ execute?: never }>;
-
-export type CellSelection<
-  Cell extends StaticCellManifest = StaticCellManifest,
-> = Readonly<{
-  manifest: Cell;
-  source: CellSourceReference;
-}>;
-
+/** The small, runtime-neutral shape shared by the handwritten topology roots. */
 export type SystemDefinition = Readonly<{
   kind: 'system';
   id: string;
-  cells: readonly CellSelection[];
-}>;
-
-export type ExperienceFeatureSourceReference = Readonly<{
-  moduleSpecifier: string;
-  manifestExportName: string;
-  repositoryPath: string;
-}>;
-
-export type ExperienceFeatureSelection = Readonly<{
-  manifest: ExperienceFeatureManifest;
-  source: ExperienceFeatureSourceReference;
+  cells: readonly CellManifest[];
 }>;
 
 export type ExperienceDefinition = Readonly<{
   kind: 'experience';
   id: string;
-  cells: readonly CellSelection[];
+  cells: readonly CellManifest[];
   uses: readonly string[];
-  features: readonly ExperienceFeatureSelection[];
+  features: readonly ExperienceFeatureManifest[];
 }>;
 
 export type ExperienceDefinitionInput = Omit<
   ExperienceDefinition,
   'features' | 'kind'
 > &
-  Readonly<{ features?: readonly ExperienceFeatureSelection[] }>;
+  Readonly<{ features?: readonly ExperienceFeatureManifest[] }>;
 
 export type HttpBoundaryProfileBinding = Readonly<{
   operationId: string;
@@ -77,22 +51,6 @@ export type TopologyDefinitionInput = Omit<
     httpBoundaryProfiles?: readonly HttpBoundaryProfile[];
     httpBoundaryBindings?: readonly HttpBoundaryProfileBinding[];
   }>;
-
-export const selectCell = <const Cell extends StaticCellManifest>(
-  selection: CellSelection<Cell>,
-): CellSelection<Cell> =>
-  Object.freeze({
-    manifest: selection.manifest,
-    source: Object.freeze({ ...selection.source }),
-  });
-
-export const selectExperienceFeature = (
-  selection: ExperienceFeatureSelection,
-): ExperienceFeatureSelection =>
-  Object.freeze({
-    manifest: selection.manifest,
-    source: Object.freeze({ ...selection.source }),
-  });
 
 export const defineSystem = (
   definition: Omit<SystemDefinition, 'kind'>,

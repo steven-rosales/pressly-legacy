@@ -3,7 +3,7 @@ import 'server-only';
 import {
   makeCustomerPricingCatalogLoader,
   type PricingCatalogLoader,
-} from '@pressly/generated-runtime/browser/customer';
+} from '@pressly/topology/browser/customer';
 import { cache } from 'react';
 import { makeServerWebCore } from './server-web-core';
 

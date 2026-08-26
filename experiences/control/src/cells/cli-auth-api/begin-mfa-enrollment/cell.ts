@@ -5,10 +5,11 @@ import type {
 } from "../../../auth/model/schemas.ts"
 import { controlCliAuthApiBeginMfaEnrollmentContract } from "./contract.ts"
 import { controlCliAuthApiBeginMfaEnrollmentSurface } from "./http.ts"
-import { declareCommandCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 export const controlCliAuthApiBeginMfaEnrollmentCellDeclaration =
-  declareCommandCell<BeginMfaInput, Enrollment, BeginMfaFailure>({
+  defineOperation<BeginMfaInput, Enrollment, BeginMfaFailure>({
+    kind: "command",
     id: "control.cli-auth-api-begin-mfa-enrollment.v1",
     contract: controlCliAuthApiBeginMfaEnrollmentContract,
     authorization: {

@@ -6,7 +6,7 @@ import type {
 } from "../../../management/orders/contracts.ts"
 import { orderFailure } from "../../../management/model/failure.ts"
 import { listControlOrdersCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 const allowedLocationIds = (
   input: ListControlOrdersInput["context"],
@@ -70,7 +70,7 @@ const projectOrder = (order: {
 export const makeListControlOrdersCell = (
   orders: OrderManagementExecute<"listCanonicalOrders">,
 ) =>
-  bindCell(listControlOrdersCellDeclaration, async (input) => {
+  defineOperation(listControlOrdersCellDeclaration, async (input) => {
     const locationIds = allowedLocationIds(input.context, input.locationId)
     if (locationIds.kind === "failure") return locationIds
     const outcome = await orders.execute({

@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import type { PostgresDatabase } from '@pressly/postgres/client';
 import type { Clock } from '@pressly/time';
 import { hashOrderCommand } from '../../../model/canonical-order/policy.ts';
@@ -16,11 +16,12 @@ import type {
 export const restoreIncomingOrderProposalOperationId =
   'orders.restore-incoming-order-proposal.v1';
 
-export const restoreIncomingOrderProposalCellDeclaration = declareCommandCell<
+export const restoreIncomingOrderProposalCellDeclaration = defineOperation<
   RestoreIncomingOrderProposalCommand,
   RestoreIncomingOrderProposalResult,
   RestoreIncomingOrderProposalExpectedFailure
 >({
+  kind: 'command',
   id: restoreIncomingOrderProposalOperationId,
   authentication: 'required',
   contract: restoreIncomingOrderProposalContract,
@@ -47,7 +48,7 @@ export const makeRestoreIncomingOrderProposalCell = (dependencies: {
   schema: OrdersSchema;
   clock: Clock;
 }) =>
-  bindCell(
+  defineOperation(
     restoreIncomingOrderProposalCellDeclaration,
     makeExecuteRestoreIncomingOrderProposal({
       writer: makeRestoreIncomingOrderProposalPostgresWriter(dependencies),

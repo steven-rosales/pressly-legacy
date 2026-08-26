@@ -4,7 +4,7 @@ import {
   decode,
   defineBoundaryContract,
   defineCellContract,
-  defineCommandCell,
+  defineOperation,
   defineHttpBoundaryProfile,
   defineHttpCatalog,
   http,
@@ -133,7 +133,8 @@ const makeCell = (
             },
           };
 
-  return defineCommandCell<TestInput, TestOutput, TestFailure>({
+  return defineOperation<TestInput, TestOutput, TestFailure>({
+    kind: 'command',
     id: input.id,
     authentication: input.authentication,
     contract: defineCellContract({
@@ -160,7 +161,8 @@ const makeObservedCell = (
     presenterThrows?: boolean;
   }>,
 ) =>
-  defineCommandCell<TestInput, TestOutput, TestFailure>({
+  defineOperation<TestInput, TestOutput, TestFailure>({
+    kind: 'command',
     id: input.id,
     contract: defineCellContract({
       input: defineBoundaryContract({

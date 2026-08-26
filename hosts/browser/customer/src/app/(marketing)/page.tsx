@@ -1,4 +1,4 @@
-import { customerWeb } from '@pressly/generated-runtime/browser/customer';
+import { customerWeb } from '@pressly/topology/browser/customer';
 
 export const metadata = customerWeb.home.metadata;
 export default function HomePage() {

@@ -4,10 +4,11 @@ import type {
 } from "../../../auth/model/schemas.ts"
 import { controlCliAuthApiRegenerateMfaRecoveryCodesContract } from "./contract.ts"
 import { controlCliAuthApiRegenerateMfaRecoveryCodesSurface } from "./http.ts"
-import { declareCommandCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 export const controlCliAuthApiRegenerateMfaRecoveryCodesCellDeclaration =
-  declareCommandCell<IdentityMutationInput, RecoveryCodes, never>({
+  defineOperation<IdentityMutationInput, RecoveryCodes, never>({
+    kind: "command",
     id: "control.cli-auth-api-regenerate-mfa-recovery-codes.v1",
     contract: controlCliAuthApiRegenerateMfaRecoveryCodesContract,
     authorization: {

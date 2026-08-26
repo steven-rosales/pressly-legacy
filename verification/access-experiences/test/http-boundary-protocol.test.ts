@@ -1,7 +1,7 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import {
-  bindCell,
+  defineOperation,
   defineHttpCatalog,
   type CellDeclaration,
   type CellOutcome,
@@ -37,7 +37,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 const inertCell = <Kind extends FiniteCellKind, Input, Output, Failure>(
   declaration: CellDeclaration<Kind, Input, Output, Failure>,
 ) =>
-  bindCell(
+  defineOperation(
     declaration,
     async (_input): Promise<CellOutcome<Output, Failure>> =>
       new Promise<CellOutcome<Output, Failure>>(() => undefined),
@@ -262,7 +262,7 @@ describe('selected profiled-host protocol', () => {
 
   it('executes a protected Control CLI auth route through bearer, IP, identity, and policy boundaries without cookie defenses', async () => {
     const events: string[] = [];
-    const beginEnrollment = bindCell(
+    const beginEnrollment = defineOperation(
       controlCliAuthApiCellDeclarations.cliAuthApiBeginMfaEnrollment,
       async () => ({
         kind: 'success',
@@ -330,23 +330,26 @@ describe('selected profiled-host protocol', () => {
 
   it('executes request-rate, parser, origin, validation and multi-cookie presentation in order', async () => {
     const events: string[] = [];
-    const login = bindCell(controlAuthCellDeclarations.login, async () => {
-      events.push('execute');
-      const methods: ['totp', 'recovery'] = ['totp', 'recovery'];
-      return {
-        kind: 'success',
-        value: {
-          data: {
-            status: 'mfa_required' as const,
-            methods,
+    const login = defineOperation(
+      controlAuthCellDeclarations.login,
+      async () => {
+        events.push('execute');
+        const methods: ['totp', 'recovery'] = ['totp', 'recovery'];
+        return {
+          kind: 'success',
+          value: {
+            data: {
+              status: 'mfa_required' as const,
+              methods,
+            },
+            setCookieHeaders: [
+              'pressly_control_session=; Path=/; HttpOnly; SameSite=Strict',
+              'pressly_control_mfa=challenge; Path=/; HttpOnly; SameSite=Strict',
+            ],
           },
-          setCookieHeaders: [
-            'pressly_control_session=; Path=/; HttpOnly; SameSite=Strict',
-            'pressly_control_mfa=challenge; Path=/; HttpOnly; SameSite=Strict',
-          ],
-        },
-      };
-    });
+        };
+      },
+    );
     const app = express();
     const dependencies: HttpBoundaryHostDependencies = {
       requestContext: () => (_request, _response, next) => {
@@ -509,7 +512,7 @@ describe('selected profiled-host protocol', () => {
 
   it('skips ambient JSON parsing and observes a cookie failure exactly once before send', async () => {
     const events: string[] = [];
-    const loadSession = bindCell(
+    const loadSession = defineOperation(
       controlAuthCellDeclarations.loadSession,
       async () => ({
         kind: 'failure',
@@ -565,7 +568,7 @@ describe('selected profiled-host protocol', () => {
 
   it('runs a protected bodyless Control administration route without parsing non-JSON', async () => {
     const events: string[] = [];
-    const listCustomers = bindCell(
+    const listCustomers = defineOperation(
       controlManagementCellDeclarations.listCustomers,
       async () => ({
         kind: 'success',
@@ -642,7 +645,7 @@ describe('selected profiled-host protocol', () => {
 
   it('observes invitation bootstrap cookie failures once without forcing no-store', async () => {
     const events: string[] = [];
-    const password = bindCell(
+    const password = defineOperation(
       controlManagementCellDeclarations.acceptExistingInvitationPassword,
       async () => ({
         kind: 'failure',

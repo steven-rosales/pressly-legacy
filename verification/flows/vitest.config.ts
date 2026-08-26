@@ -7,10 +7,6 @@ export default defineConfig({
   resolve: {
     alias: [
       {
-        find: /^@pressly\/generated\/job-catalog$/,
-        replacement: `${repositoryRoot}/generated/job-catalog.ts`,
-      },
-      {
         find: /^@pressly\/jobs$/,
         replacement: `${repositoryRoot}/platform/jobs/src/public.ts`,
       },

@@ -2,7 +2,7 @@ import * as Sentry from '@sentry/react';
 import type {
   ProcessorConnectionStateObserver,
   ProcessorRequestFailureObserver,
-} from '@pressly/generated-runtime/browser/processor';
+} from '@pressly/topology/browser';
 
 export type ProcessorObservabilityConfig = Readonly<{
   dsn?: string;

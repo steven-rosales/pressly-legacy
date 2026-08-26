@@ -1,4 +1,4 @@
-import { createProcessorBrowserApplication } from '@pressly/generated-runtime/browser/processor';
+import { createProcessorBrowserApplication } from '@pressly/topology/browser';
 import {
   startProcessorBrowserHost,
   type ProcessorBrowserEnvironment,
@@ -23,6 +23,7 @@ const environment = {
   storage: window.localStorage,
   events: window,
 } satisfies ProcessorBrowserEnvironment;
+
 const browser = makeProcessorBrowserCapabilities({
   window,
   document,

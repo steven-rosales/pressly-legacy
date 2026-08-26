@@ -17,10 +17,9 @@
   "include": [
     "./**/*.ts",
     "../../platform/cells/src/**/*.ts",
-    "../../topology/**/*.ts",
-    "../../generated/**/*.ts"
+    "../../topology/**/*.ts"
   ],
-  "exclude": ["node_modules", "../../generated/runtime/**"],
+  "exclude": ["node_modules"],
   "references": [
     {
       "path": "../../experiences/control/tsconfig.json"

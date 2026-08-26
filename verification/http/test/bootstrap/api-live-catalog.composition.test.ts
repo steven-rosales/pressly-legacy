@@ -5,7 +5,7 @@ import type { Secret } from '@pressly/config';
 import {
   httpBoundaryProviderTokens,
   makeHttpCatalogFromOwners,
-} from '@pressly/generated/http-catalog';
+} from '@pressly/topology/http';
 import {
   mountHttpBoundaryCatalog,
   type HttpBoundaryHostOperation,
@@ -136,7 +136,7 @@ const catalogFrom = (owners: ReturnType<typeof makeApiTargetOwnerFixture>) =>
     'system:production': owners.systems.production,
   });
 
-describe('live generated API catalog composition', () => {
+describe('live topology API catalog composition', () => {
   it('assembles every selected owner route into one fully profiled catalog', () => {
     const owners = makeApiTargetOwnerFixture();
     const catalog = catalogFrom(owners);
@@ -174,7 +174,7 @@ describe('live generated API catalog composition', () => {
     ).toBe(true);
   });
 
-  it('registers every concrete opaque provider and mounts the generated catalog once', () => {
+  it('registers every concrete opaque provider and mounts the topology catalog once', () => {
     const owners = makeApiTargetOwnerFixture();
     const catalog = catalogFrom(owners);
     const runtime = runtimeFixture();

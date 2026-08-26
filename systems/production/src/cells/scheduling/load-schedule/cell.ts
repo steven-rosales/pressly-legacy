@@ -1,5 +1,5 @@
 import type { ScheduleProposal } from '../../../read-models/production-schedule/contract.ts';
-import { bindCell, declareQueryCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { loadScheduleContract } from './contract.ts';
 import { makeExecuteLoadSchedule } from './execute.ts';
 import { loadScheduleHttpSurfaces } from './http.ts';
@@ -10,11 +10,12 @@ import {
   type LoadScheduleRepository,
 } from './types.ts';
 
-export const loadScheduleCellDeclaration = declareQueryCell<
+export const loadScheduleCellDeclaration = defineOperation<
   LoadScheduleInput,
   ScheduleProposal,
   LoadScheduleExpectedFailure
 >({
+  kind: 'query',
   id: loadScheduleOperationId,
   contract: loadScheduleContract,
   authorization: {
@@ -27,4 +28,7 @@ export const loadScheduleCellDeclaration = declareQueryCell<
 });
 
 export const makeLoadScheduleCell = (repository: LoadScheduleRepository) =>
-  bindCell(loadScheduleCellDeclaration, makeExecuteLoadSchedule(repository));
+  defineOperation(
+    loadScheduleCellDeclaration,
+    makeExecuteLoadSchedule(repository),
+  );

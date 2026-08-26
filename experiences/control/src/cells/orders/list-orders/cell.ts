@@ -5,18 +5,19 @@ import type {
 } from "../../../management/orders/contracts.ts"
 import { listControlOrdersContract } from "./contract.ts"
 import { listSurface } from "./http.ts"
-import { declareQueryCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 export const readAuthorization = {
   capability: "orders:read",
   timing: "before-input",
 } as const
 
-export const listControlOrdersCellDeclaration = declareQueryCell<
+export const listControlOrdersCellDeclaration = defineOperation<
   ListControlOrdersInput,
   OrderList,
   ControlOrderOrLocationFailure
 >({
+  kind: "query",
   id: "control.list-orders.v1",
   contract: listControlOrdersContract,
   authorization: readAuthorization,

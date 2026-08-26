@@ -21,8 +21,8 @@ const registration = (
   invoke,
 });
 
-describe('process-inbound-event generated registration observation', () => {
-  it('measures the actual generated invocation and preserves its manifest', async () => {
+describe('process-inbound-event registration observation', () => {
+  it('measures the actual invocation and preserves its manifest', async () => {
     const invoke = vi.fn<ObservableJobRegistration['invoke']>(async () => ({
       kind: 'complete',
     }));
@@ -54,7 +54,7 @@ describe('process-inbound-event generated registration observation', () => {
   });
 
   it('measures rejected invocations without replacing their failure', async () => {
-    const failure = { fault: 'generated invocation unavailable' };
+    const failure = { fault: 'invocation unavailable' };
     const observe = vi.fn(() => {
       throw { fault: 'measurement unavailable' };
     });

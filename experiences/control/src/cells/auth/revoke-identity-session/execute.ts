@@ -1,7 +1,7 @@
 import type { AccessExecute, AccessInput } from "../../../auth/model/access.ts"
 import type { RevokeIdentityInput } from "../../../auth/model/schemas.ts"
 import { controlRevokeIdentitySessionCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 const revokeAccessInput = (
   input: RevokeIdentityInput,
@@ -15,6 +15,6 @@ const revokeAccessInput = (
 export const makeControlRevokeIdentitySessionCell = (
   access: AccessExecute<"revokeIdentitySessions">,
 ) =>
-  bindCell(controlRevokeIdentitySessionCellDeclaration, (input) =>
+  defineOperation(controlRevokeIdentitySessionCellDeclaration, (input) =>
     access.execute(revokeAccessInput(input)),
   )

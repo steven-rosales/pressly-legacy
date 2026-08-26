@@ -21,10 +21,10 @@ const contents = (root: string): string =>
     .join('\n');
 
 describe('CLI runtime ownership', () => {
-  it('keeps the generic host free of business-owner and topology imports', () => {
-    const host = contents(join(repositoryRoot, 'hosts/cli/src'));
+  it('keeps the generic host free of business-owner imports', () => {
+    const host = contents(join(repositoryRoot, 'hosts/cli/src/runtime'));
     expect(host).not.toMatch(
-      /@pressly\/(?:access|customers|ingress|orders|pricing|production)-system|@pressly\/experience-|@pressly\/topology/,
+      /@pressly\/(?:access|customers|ingress|orders|pricing|production)-system|@pressly\/experience-/,
     );
   });
 

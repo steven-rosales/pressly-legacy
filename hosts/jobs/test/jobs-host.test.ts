@@ -4,7 +4,7 @@ import {
   defineCellContract,
   defineJobCatalog,
   defineMessageContract,
-  defineReactionCell,
+  defineOperation,
   job,
 } from '@pressly/cells';
 import { isAppError } from '@pressly/errors/app-error';
@@ -68,7 +68,8 @@ const makeCell = (
     >;
   }>,
 ) =>
-  defineReactionCell<TestInput, TestOutput, TestFailure>({
+  defineOperation<TestInput, TestOutput, TestFailure>({
+    kind: 'reaction',
     id: 'example.react.v1',
     contract: defineCellContract({
       input: inputContract,

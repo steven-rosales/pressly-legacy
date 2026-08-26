@@ -2,7 +2,7 @@ import type { CustomerProjection } from "../../../management/customers/contracts
 import type { CustomerManagementExecute } from "../../../management/model/dependencies.ts"
 import { customerFailure } from "../../../management/model/failure.ts"
 import { listControlCustomersCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 export const projectControlCustomer = (customer: {
   id: string
@@ -36,7 +36,7 @@ export const projectControlCustomer = (customer: {
 export const makeListControlCustomersCell = (
   customers: CustomerManagementExecute<"listCustomers">,
 ) =>
-  bindCell(listControlCustomersCellDeclaration, async (input) => {
+  defineOperation(listControlCustomersCellDeclaration, async (input) => {
     const outcome = await customers.execute({
       businessId: input.context.access.business.id,
       query: input.query ?? null,

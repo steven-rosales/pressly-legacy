@@ -5,13 +5,14 @@ import type {
 } from "../../../server/authentication/model.ts"
 import { processorCompleteMfaChallengeContract } from "./contract.ts"
 import { challengeSurface } from "./http.ts"
-import { declareCommandCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
-export const processorCompleteMfaChallengeCellDeclaration = declareCommandCell<
+export const processorCompleteMfaChallengeCellDeclaration = defineOperation<
   ProcessorChallengeInput,
   ProcessorSessionOutput,
   ProcessorAuthFailure
 >({
+  kind: "command",
   id: "processor.complete-mfa-challenge.v1",
   authentication: "none",
   contract: processorCompleteMfaChallengeContract,

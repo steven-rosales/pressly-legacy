@@ -60,7 +60,7 @@ Non-browser clients such as `curl` and malicious servers do not have to enforce 
 ### Implementation
 
 The API policy lives in `hosts/http/src/runtime/middleware/cors.ts` and is
-composed before generated routes by the HTTP host.
+composed before topology routes by the HTTP host.
 
 The policy:
 
@@ -86,7 +86,7 @@ Pressly code owns the policy decision: which origins, methods, and headers are a
 
 ## Browser Security Headers
 
-The HTTP host applies `helmet()` before all generated routes.
+The HTTP host applies `helmet()` before all topology routes.
 It removes the Express disclosure header and adds baseline browser defenses such as content-type sniffing protection, frame restrictions, transport security, and referrer policy.
 
 The web application owns the meaningful browser execution policy because it serves executable pages.
@@ -252,7 +252,7 @@ HTTP input is untrusted even when TypeScript gives the handler a static type.
 Runtime parsing must establish the type before a controller or use case consumes the value.
 
 Each HTTP surface names the owning cell contract and boundary profile. The
-generated catalog and generic HTTP host parse the declared body, query, and
+topology catalog and generic HTTP host parse the declared body, query, and
 path once at the profile-controlled phase, then pass the decoded value to
 authorization and execution. Missing, repeated, mixed, or mutated validation
 fails closed. Expected validation failures are presented by the owning
@@ -266,7 +266,7 @@ Boundary schemas for mutable commands use strict objects so unknown properties a
 
 ### Parsing Limits
 
-The HTTP host applies controls before generated route composition:
+The HTTP host applies controls before topology route composition:
 
 - JSON content types are required on routes that accept JSON bodies.
 - Login bodies are limited to `8kb`.
@@ -377,7 +377,7 @@ Unsafe names are rejected before any query executes.
 ### Automated Enforcement
 
 `platform/postgres/test/sql-safety.test.ts` scans executable source under
-Experiences, generated output, hosts, Platform, Systems, and Topology.
+Experiences, topology output, hosts, Platform, Systems, and Topology.
 
 CI fails when it finds:
 

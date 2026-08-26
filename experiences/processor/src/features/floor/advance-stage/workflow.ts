@@ -51,6 +51,7 @@ export const makeAdvanceStageWorkflow =
     const idempotencyKey = await dependencies.makeIdempotencyKey(
       idempotencyInput(intent)
     )
+
     return dependencies.execute({
       locationId: intent.locationId,
       stageRunId: intent.stageRunId,

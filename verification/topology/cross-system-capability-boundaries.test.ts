@@ -7,10 +7,7 @@ const repositoryRoot = fileURLToPath(new URL('../..', import.meta.url));
 const ordersSourceRoot = path.join(repositoryRoot, 'systems/orders/src');
 const sourceMap = JSON.parse(
   readFileSync(
-    path.join(
-      repositoryRoot,
-      'tooling/typescript/dependency-cruiser.generated.json',
-    ),
+    path.join(repositoryRoot, 'tooling/typescript/dependency-cruiser.json'),
     'utf8',
   ),
 ) as Readonly<{

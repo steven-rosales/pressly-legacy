@@ -5,18 +5,19 @@ import type {
 } from "../../../management/workforce/contracts.ts"
 import { revokeControlAccessContract } from "./contract.ts"
 import { revokeAccessSurface } from "./http.ts"
-import { declareCommandCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 export const writeAuthorization = {
   capability: "team:write",
   timing: "before-input",
 } as const
 
-export const revokeControlAccessCellDeclaration = declareCommandCell<
+export const revokeControlAccessCellDeclaration = defineOperation<
   RevokeAccessInput,
   RevokeAccessOutput,
   ControlWorkforceFailure
 >({
+  kind: "command",
   id: "control.revoke-access.v1",
   contract: revokeControlAccessContract,
   authorization: writeAuthorization,

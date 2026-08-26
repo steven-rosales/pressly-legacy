@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { receiveCentsWebhookContract } from './contract.ts';
 import { makeExecuteReceiveCentsWebhook } from './execute.ts';
 import { receiveCentsWebhookHttpSurface } from './http.ts';
@@ -10,11 +10,12 @@ import {
 } from './types.ts';
 import type { IngestWebhookEventResult } from '../../../model/inbox.ts';
 
-export const receiveCentsWebhookCellDeclaration = declareCommandCell<
+export const receiveCentsWebhookCellDeclaration = defineOperation<
   ReceiveCentsWebhookCommand,
   IngestWebhookEventResult,
   ReceiveCentsWebhookFailure
 >({
+  kind: 'command',
   id: receiveCentsWebhookOperationId,
   authentication: 'required',
   contract: receiveCentsWebhookContract,
@@ -29,7 +30,7 @@ export const receiveCentsWebhookCellDeclaration = declareCommandCell<
 export const makeReceiveCentsWebhookCell = (
   dependencies: ReceiveCentsWebhookDependencies,
 ) =>
-  bindCell(
+  defineOperation(
     receiveCentsWebhookCellDeclaration,
     makeExecuteReceiveCentsWebhook(dependencies),
   );

@@ -8,7 +8,7 @@
       "#customer/*": ["./src/web/*"],
       "@test/*": ["./test/web/*"]
     },
-    "types": ["node", "vitest/globals", "@testing-library/jest-dom"]
+    "types": ["node", "vitest/globals", "@testing-library/jest-dom/vitest"]
   },
   "include": [
     "src/**/*.ts",

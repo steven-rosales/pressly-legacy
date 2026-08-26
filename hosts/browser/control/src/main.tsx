@@ -1,4 +1,4 @@
-import { createControlBrowserApplication } from '@pressly/generated-runtime/browser/control';
+import { createControlBrowserApplication } from '@pressly/topology/browser';
 import {
   startControlBrowserHost,
   type ControlBrowserEnvironment,

@@ -9,7 +9,6 @@ const postgresRoot = fileURLToPath(new URL('../', import.meta.url));
 const repositoryRoot = resolve(postgresRoot, '../..');
 const sourceRoots = [
   'experiences',
-  'generated',
   'hosts',
   'platform',
   'systems',

@@ -5,7 +5,7 @@ import type {
 } from "../../../management/workforce/contracts.ts"
 import { workforceFailure } from "../../../management/model/failure.ts"
 import { issueControlInvitationCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 type RawInvitation = Readonly<{
   id: string
@@ -61,7 +61,7 @@ const invitationIssueProjection = (
 export const makeIssueControlInvitationCell = (
   access: AccessManagementExecute<"issueWorkforceInvitation">,
 ) =>
-  bindCell(issueControlInvitationCellDeclaration, async (input) => {
+  defineOperation(issueControlInvitationCellDeclaration, async (input) => {
     const outcome = await access.execute({
       actor: input.context.actor,
       businessId: input.context.access.business.id,

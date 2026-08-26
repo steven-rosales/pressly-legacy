@@ -309,7 +309,7 @@ if [[ "${CI:-false}" == true ]]; then
 fi
 
 echo '[browser-e2e] building host-side browser contract dependencies'
-pnpm exec turbo build --filter=@pressly/generated... --concurrency=2
+pnpm exec turbo build --filter=@pressly/topology... --concurrency=2
 
 echo "[browser-e2e] running Chromium against disposable local HTTPS; artifacts=$ARTIFACT_DIR"
 cd "$ROOT_DIR"

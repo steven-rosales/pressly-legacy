@@ -3,7 +3,7 @@
 import {
   customerWebClient,
   createCustomerWebClientRuntime,
-} from '@pressly/generated-runtime/browser/customer-client';
+} from '@pressly/topology/browser/customer-client';
 import { invariantViolationError } from '@pressly/errors/factories';
 import { nullLogger } from '@pressly/logging';
 import {

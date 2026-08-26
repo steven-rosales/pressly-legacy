@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { updateShiftContract } from './contract.ts';
 import { updateShiftOperationId } from './decide.ts';
 import {
@@ -12,11 +12,12 @@ import type {
   UpdateShiftResult,
 } from './types.ts';
 
-export const updateShiftCellDeclaration = declareCommandCell<
+export const updateShiftCellDeclaration = defineOperation<
   UpdateShiftCommand,
   UpdateShiftResult,
   UpdateShiftExpectedFailure
 >({
+  kind: 'command',
   id: updateShiftOperationId,
   contract: updateShiftContract,
   authorization: {
@@ -38,4 +39,4 @@ export const updateShiftCellDeclaration = declareCommandCell<
 
 export const makeUpdateShiftCell = <StoredWorkEvent>(
   deps: UpdateShiftDependencies<StoredWorkEvent>,
-) => bindCell(updateShiftCellDeclaration, makeExecuteUpdateShift(deps));
+) => defineOperation(updateShiftCellDeclaration, makeExecuteUpdateShift(deps));

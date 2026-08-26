@@ -16,7 +16,7 @@ import {
 import type {
   RequestClient,
   RequestInput,
-} from '@pressly/generated-runtime/browser/customer';
+} from '@pressly/topology/browser/customer';
 
 export type MakeFetchRequestClientInput = Readonly<{
   baseUrl: string;

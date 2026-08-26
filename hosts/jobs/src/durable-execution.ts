@@ -44,7 +44,7 @@ const assertRegistration = (
   )
     throw configError({
       code: 'worker_job_registration_invalid',
-      message: `The generated Worker job registration does not match ${expected.jobId} on ${expected.queue}.`,
+      message: `The topology Worker job registration does not match ${expected.jobId} on ${expected.queue}.`,
     });
   if (
     registration.retry === null ||
@@ -52,12 +52,12 @@ const assertRegistration = (
   )
     throw configError({
       code: 'worker_job_retry_manifest_invalid',
-      message: `The generated Worker job must declare ${expected.maxAttempts} attempts.`,
+      message: `The topology Worker job must declare ${expected.maxAttempts} attempts.`,
     });
   if (expected.runtimeMaxAttempts !== registration.retry.maxAttempts)
     throw configError({
       code: 'worker_job_max_attempts_mismatch',
-      message: `WORKER_MAX_ATTEMPTS=${expected.runtimeMaxAttempts} disagrees with the generated job manifest value ${registration.retry.maxAttempts}.`,
+      message: `WORKER_MAX_ATTEMPTS=${expected.runtimeMaxAttempts} disagrees with the topology job manifest value ${registration.retry.maxAttempts}.`,
     });
 };
 
@@ -83,7 +83,7 @@ export const makeDurableJobExecution = (input: {
       if (jobs.length !== input.bindings.length)
         throw configError({
           code: 'worker_job_catalog_invalid',
-          message: `The Worker requires exactly ${input.bindings.length} generated jobs; received ${jobs.length}.`,
+          message: `The Worker requires exactly ${input.bindings.length} topology jobs; received ${jobs.length}.`,
         });
 
       const registrationById = new Map(
@@ -92,14 +92,14 @@ export const makeDurableJobExecution = (input: {
       if (registrationById.size !== jobs.length)
         throw configError({
           code: 'worker_job_catalog_invalid',
-          message: 'The generated Worker job catalog contains duplicate jobs.',
+          message: 'The topology Worker job catalog contains duplicate jobs.',
         });
       const pairs = input.bindings.map((binding) => {
         const registration = registrationById.get(binding.expected.jobId);
         if (registration === undefined)
           throw configError({
             code: 'worker_job_catalog_invalid',
-            message: `The generated Worker job catalog is missing ${binding.expected.jobId}.`,
+            message: `The topology Worker job catalog is missing ${binding.expected.jobId}.`,
           });
         return Object.freeze({ binding, registration });
       });

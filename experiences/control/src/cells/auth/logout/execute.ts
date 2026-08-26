@@ -3,12 +3,12 @@ import type { Logout } from "../../../auth/model/schemas.ts"
 import type { ControlSessionDependencies } from "../../../auth/model/session.ts"
 import { loadControlSession } from "../../../auth/model/session.ts"
 import { controlLogoutCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 export const makeControlLogoutCell = (
   dependencies: ControlSessionDependencies,
 ) =>
-  bindCell(controlLogoutCellDeclaration, async (input) => {
+  defineOperation(controlLogoutCellDeclaration, async (input) => {
     const loaded = await loadControlSession(
       dependencies,
       input.sessionToken,

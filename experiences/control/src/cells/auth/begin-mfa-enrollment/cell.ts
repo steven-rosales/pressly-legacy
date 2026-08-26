@@ -5,13 +5,14 @@ import type {
 } from "../../../auth/model/schemas.ts"
 import { controlBeginMfaEnrollmentContract } from "./contract.ts"
 import { beginSurface } from "./http.ts"
-import { declareCommandCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
-export const controlBeginMfaEnrollmentCellDeclaration = declareCommandCell<
+export const controlBeginMfaEnrollmentCellDeclaration = defineOperation<
   BeginMfaInput,
   Enrollment,
   BeginMfaFailure
 >({
+  kind: "command",
   id: "control.begin-mfa-enrollment.v1",
   contract: controlBeginMfaEnrollmentContract,
   authorization: {

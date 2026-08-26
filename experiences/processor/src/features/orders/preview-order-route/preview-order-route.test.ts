@@ -46,7 +46,7 @@ const result: ProductionOrderRouteProposal = {
 }
 
 describe("Processor preview-order-route experience", () => {
-  it("preserves the preview body and response schema through generated route metadata", async () => {
+  it("preserves the preview body and response schema through declared route metadata", async () => {
     const request = vi
       .fn<PreviewOrderRouteRequestTransport>()
       .mockResolvedValue(result)

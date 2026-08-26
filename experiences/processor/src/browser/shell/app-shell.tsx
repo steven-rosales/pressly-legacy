@@ -1,15 +1,15 @@
-import type { ReactNode } from "react"
-import { useTranslation } from "react-i18next"
+import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   WorkspaceShell,
   type WorkspaceApplicationDestination,
-} from "../components/layout/workspace-shell"
-import type { ProcessorCapability } from "../../contracts/authentication-v1.ts"
+} from '../components/layout/workspace-shell';
+import type { ProcessorCapability } from '../../contracts/authentication-v1.ts';
 import {
   workspaceHomeNavigation,
   visibleWorkspaceNavigationSections,
   type WorkspaceView,
-} from "./app.navigation"
+} from './app.navigation';
 
 export function AppShell({
   current,
@@ -26,39 +26,39 @@ export function AppShell({
   onLogout,
   children,
 }: {
-  current: WorkspaceView
-  onNavigate: (view: WorkspaceView) => void
-  title: string
-  description: string
-  actions?: ReactNode
-  locationName: string
-  timezone: string
-  principalName: string
-  capabilities: readonly ProcessorCapability[]
-  applications?: readonly WorkspaceApplicationDestination[]
-  logoutBusy: boolean
-  onLogout: () => void
-  children: ReactNode
+  current: WorkspaceView;
+  onNavigate: (view: WorkspaceView) => void;
+  title: string;
+  description: string;
+  actions?: ReactNode;
+  locationName: string;
+  timezone: string;
+  principalName: string;
+  capabilities: readonly ProcessorCapability[];
+  applications?: readonly WorkspaceApplicationDestination[];
+  logoutBusy: boolean;
+  onLogout: () => void;
+  children: ReactNode;
 }) {
-  const { t } = useTranslation()
+  const { t } = useTranslation();
 
   const localizedApplications = applications.map((application) => {
-    if (application.id === "processor")
+    if (application.id === 'processor')
       return {
         ...application,
-        label: t("applications.processor.label"),
-        description: t("applications.processor.description"),
-      }
+        label: t('applications.processor.label'),
+        description: t('applications.processor.description'),
+      };
 
-    if (application.id === "control")
+    if (application.id === 'control')
       return {
         ...application,
-        label: t("applications.control.label"),
-        description: t("applications.control.description"),
-      }
+        label: t('applications.control.label'),
+        description: t('applications.control.description'),
+      };
 
-    return application
-  })
+    return application;
+  });
 
   return (
     <WorkspaceShell
@@ -68,11 +68,11 @@ export function AppShell({
       description={description}
       actions={actions}
       currentApplicationId="processor"
-      applicationName={t("common.appName")}
+      applicationName={t('common.appName')}
       applications={localizedApplications}
-      applicationsLabel={t("navigation.applications")}
-      switchApplicationLabel={t("navigation.switchApplication", {
-        application: t("common.appName"),
+      applicationsLabel={t('navigation.applications')}
+      switchApplicationLabel={t('navigation.switchApplication', {
+        application: t('common.appName'),
       })}
       home={{
         ...workspaceHomeNavigation,
@@ -86,26 +86,26 @@ export function AppShell({
             ...item,
             label: t(item.labelKey),
           })),
-        })
+        }),
       )}
-      navigationLabel={t("navigation.label")}
-      navigationDialogTitle={t("navigation.dialogTitle")}
-      navigationDialogDescription={t("navigation.dialogDescription")}
-      openNavigationLabel={t("navigation.open")}
-      skipToContentLabel={t("navigation.skipToContent")}
-      closeLabel={t("common.close")}
-      signedInLabel={t("navigation.signedInAs", { name: principalName })}
-      signOutLabel={t("navigation.lockAndSwitch")}
+      navigationLabel={t('navigation.label')}
+      navigationDialogTitle={t('navigation.dialogTitle')}
+      navigationDialogDescription={t('navigation.dialogDescription')}
+      openNavigationLabel={t('navigation.open')}
+      skipToContentLabel={t('navigation.skipToContent')}
+      closeLabel={t('common.close')}
+      signedInLabel={t('navigation.signedInAs', { name: principalName })}
+      signOutLabel={t('navigation.lockAndSwitch')}
       principalName={principalName}
       logoutBusy={logoutBusy}
       onLogout={onLogout}
       footer={
         <>
           <p className="font-medium text-foreground">
-            {t("navigation.laundryProduction")}
+            {t('navigation.laundryProduction')}
           </p>
           <p className="mt-1">
-            {t("navigation.locationAndTimezone", {
+            {t('navigation.locationAndTimezone', {
               location: locationName,
               timezone,
             })}
@@ -115,5 +115,5 @@ export function AppShell({
     >
       {children}
     </WorkspaceShell>
-  )
+  );
 }

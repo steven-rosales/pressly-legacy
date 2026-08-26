@@ -4,13 +4,14 @@ import type {
 } from "../../../auth/model/schemas.ts"
 import { controlRemoveMfaContract } from "./contract.ts"
 import { removeSurface } from "./http.ts"
-import { declareCommandCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
-export const controlRemoveMfaCellDeclaration = declareCommandCell<
+export const controlRemoveMfaCellDeclaration = defineOperation<
   RemoveMfaInput,
   MfaMutation,
   never
 >({
+  kind: "command",
   id: "control.remove-mfa.v1",
   contract: controlRemoveMfaContract,
   authorization: {

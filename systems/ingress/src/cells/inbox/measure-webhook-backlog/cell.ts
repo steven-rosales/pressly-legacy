@@ -1,4 +1,4 @@
-import { bindCell, declareQueryCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import type { WebhookBacklog } from '../../../model/inbox.ts';
 import { measureWebhookBacklogContract } from './contract.ts';
 import {
@@ -11,11 +11,12 @@ import {
   type MeasureWebhookBacklogInput,
 } from './types.ts';
 
-export const measureWebhookBacklogCellDeclaration = declareQueryCell<
+export const measureWebhookBacklogCellDeclaration = defineOperation<
   MeasureWebhookBacklogInput,
   WebhookBacklog,
   MeasureWebhookBacklogExpectedFailure
 >({
+  kind: 'query',
   id: measureWebhookBacklogOperationId,
   authentication: 'none',
   contract: measureWebhookBacklogContract,
@@ -27,7 +28,7 @@ export const measureWebhookBacklogCellDeclaration = declareQueryCell<
 export const makeMeasureWebhookBacklogCell = (
   deps: MeasureWebhookBacklogDependencies,
 ) =>
-  bindCell(
+  defineOperation(
     measureWebhookBacklogCellDeclaration,
     makeExecuteMeasureWebhookBacklog(deps),
   );

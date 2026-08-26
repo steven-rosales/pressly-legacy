@@ -6,7 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { normalizeUnknownError } from '@pressly/errors/app-error';
-import { makeJobCatalogFromOwners } from '@pressly/generated/job-catalog';
+import { makeJobCatalogFromOwners } from '@pressly/topology/jobs';
 import { makeIngressSystem } from '@pressly/ingress-system/testing/assembly';
 import { makeDurableQueueJob } from '@pressly/jobs';
 import { registrationsFromJobCatalog } from '@pressly/jobs-host';

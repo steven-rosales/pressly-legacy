@@ -5,14 +5,15 @@ import type {
 import type { CliSession } from "../../../cli/model.ts"
 import { controlCliAuthApiCompleteMfaChallengeContract } from "./contract.ts"
 import { controlCliAuthApiCompleteMfaChallengeSurface } from "./http.ts"
-import { declareCommandCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 export const controlCliAuthApiCompleteMfaChallengeCellDeclaration =
-  declareCommandCell<
+  defineOperation<
     CliAuthApiChallengeInput,
     CliSession,
     CliAuthApiChallengeFailure
   >({
+    kind: "command",
     id: "control.cli-auth-api-complete-mfa-challenge.v1",
     authentication: "none",
     contract: controlCliAuthApiCompleteMfaChallengeContract,

@@ -2,13 +2,14 @@ import type { CliAuthApiTokenInput } from "../../../auth/model/cli-auth-api.ts"
 import type { CliLogout } from "../../../cli/model.ts"
 import { controlCliAuthApiLogoutContract } from "./contract.ts"
 import { controlCliAuthApiLogoutSurface } from "./http.ts"
-import { declareCommandCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
-export const controlCliAuthApiLogoutCellDeclaration = declareCommandCell<
+export const controlCliAuthApiLogoutCellDeclaration = defineOperation<
   CliAuthApiTokenInput,
   CliLogout,
   never
 >({
+  kind: "command",
   id: "control.cli-auth-api-logout.v1",
   authentication: "none",
   contract: controlCliAuthApiLogoutContract,

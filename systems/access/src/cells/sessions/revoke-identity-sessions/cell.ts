@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import { revokeIdentitySessionsContract } from './contract.ts';
 import type { RevokeIdentitySessions } from './revoke-identity-sessions.usecase.ts';
 import {
@@ -8,11 +8,12 @@ import {
   type OperationOutput,
 } from '../../../model/boundary/cell-contract.ts';
 
-export const revokeIdentitySessionsCellDeclaration = declareCommandCell<
+export const revokeIdentitySessionsCellDeclaration = defineOperation<
   OperationInput<RevokeIdentitySessions>,
   OperationOutput<RevokeIdentitySessions>,
   OperationFailure<RevokeIdentitySessions>
 >({
+  kind: 'command',
   id: 'access.revoke-identity-sessions.v1',
   authentication: 'required',
   contract: revokeIdentitySessionsContract,
@@ -29,4 +30,7 @@ export const revokeIdentitySessionsCellDeclaration = declareCommandCell<
 export const makeRevokeIdentitySessionsCell = (
   operation: RevokeIdentitySessions,
 ) =>
-  bindCell(revokeIdentitySessionsCellDeclaration, successOperation(operation));
+  defineOperation(
+    revokeIdentitySessionsCellDeclaration,
+    successOperation(operation),
+  );

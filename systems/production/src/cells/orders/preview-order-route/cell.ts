@@ -1,4 +1,4 @@
-import { bindCell, declareQueryCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import type {
   OrderRouteProposalCommand,
   ProductionOrderRouteProposal,
@@ -14,11 +14,12 @@ import {
   type PreviewOrderRouteExpectedFailure,
 } from './types.ts';
 
-export const previewOrderRouteCellDeclaration = declareQueryCell<
+export const previewOrderRouteCellDeclaration = defineOperation<
   OrderRouteProposalCommand,
   ProductionOrderRouteProposal,
   PreviewOrderRouteExpectedFailure
 >({
+  kind: 'query',
   id: previewOrderRouteOperationId,
   contract: previewOrderRouteContract,
   authorization: {
@@ -37,7 +38,7 @@ export const previewOrderRouteCellDeclaration = declareQueryCell<
 export const makePreviewOrderRouteCell = (
   dependencies: PreviewOrderRouteDependencies,
 ) =>
-  bindCell(
+  defineOperation(
     previewOrderRouteCellDeclaration,
     makeExecutePreviewOrderRoute(dependencies),
   );

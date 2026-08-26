@@ -19,7 +19,7 @@ import {
   projectProcessorProductionBoard,
 } from "../../../server/model/production-board.ts"
 import { loadProcessorProductionWorkspaceCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 export type LoadProductionWorkspace = ProductionQuery<
   LoadProcessorProductionWorkspaceInput,
@@ -90,15 +90,18 @@ export const makeLoadProcessorProductionWorkspaceCell = (dependencies: {
   loadWorkspace: LoadProductionWorkspace
   resolveOrderCanonical: ResolveOperationalOrderCanonical
 }) =>
-  bindCell(loadProcessorProductionWorkspaceCellDeclaration, async (input) => {
-    const workspace = await dependencies.loadWorkspace(input)
-    return workspace.kind === "failure"
-      ? productionQueryFailureOutcome(workspace.failure)
-      : {
-          kind: "success",
-          value: await project(
-            workspace.value,
-            dependencies.resolveOrderCanonical
-          ),
-        }
-  })
+  defineOperation(
+    loadProcessorProductionWorkspaceCellDeclaration,
+    async (input) => {
+      const workspace = await dependencies.loadWorkspace(input)
+      return workspace.kind === "failure"
+        ? productionQueryFailureOutcome(workspace.failure)
+        : {
+            kind: "success",
+            value: await project(
+              workspace.value,
+              dependencies.resolveOrderCanonical
+            ),
+          }
+    }
+  )

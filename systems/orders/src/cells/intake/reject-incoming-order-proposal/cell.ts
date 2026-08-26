@@ -1,4 +1,4 @@
-import { bindCell, declareCommandCell } from '@pressly/cells';
+import { defineOperation } from '@pressly/cells';
 import type { PostgresDatabase } from '@pressly/postgres/client';
 import type { Clock } from '@pressly/time';
 import { hashOrderCommand } from '../../../model/canonical-order/policy.ts';
@@ -16,11 +16,12 @@ import type {
 export const rejectIncomingOrderProposalOperationId =
   'orders.reject-incoming-order-proposal.v1';
 
-export const rejectIncomingOrderProposalCellDeclaration = declareCommandCell<
+export const rejectIncomingOrderProposalCellDeclaration = defineOperation<
   RejectIncomingOrderProposalCommand,
   IncomingOrderProposalDecisionResult,
   RejectIncomingOrderProposalExpectedFailure
 >({
+  kind: 'command',
   id: rejectIncomingOrderProposalOperationId,
   authentication: 'required',
   contract: rejectIncomingOrderProposalContract,
@@ -47,7 +48,7 @@ export const makeRejectIncomingOrderProposalCell = (dependencies: {
   schema: OrdersSchema;
   clock: Clock;
 }) =>
-  bindCell(
+  defineOperation(
     rejectIncomingOrderProposalCellDeclaration,
     makeExecuteRejectIncomingOrderProposal({
       writer: makeRejectIncomingOrderProposalPostgresWriter(dependencies),

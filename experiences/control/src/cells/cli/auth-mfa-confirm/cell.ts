@@ -1,8 +1,9 @@
 import { confirmSurface } from "./cli.ts"
 import { confirmContract } from "./contract.ts"
-import { declareCommandCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
-export const adminCliAuthMfaConfirmCellDeclaration = declareCommandCell({
+export const adminCliAuthMfaConfirmCellDeclaration = defineOperation({
+  kind: "command",
   id: "control.cli-auth-mfa-confirm.v1",
   authentication: "none",
   contract: confirmContract,

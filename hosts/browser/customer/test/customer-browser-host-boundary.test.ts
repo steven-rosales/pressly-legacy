@@ -14,7 +14,7 @@ const manifest = JSON.parse(
 }>;
 
 describe('customer browser host boundary', () => {
-  it('depends only on platform, generated, and framework mechanisms', () => {
+  it('depends only on platform, topology, and framework mechanisms', () => {
     const imports = [...implementation.matchAll(/from ['"]([^'"]+)['"]/g)].map(
       (match) => match[1],
     );
@@ -26,12 +26,11 @@ describe('customer browser host boundary', () => {
     const presslyDependencies = Object.keys(manifest.dependencies ?? {}).filter(
       (dependency) => dependency.startsWith('@pressly/'),
     );
-    expect(presslyDependencies).toContain('@pressly/generated-runtime');
+    expect(presslyDependencies).toContain('@pressly/topology');
     expect(presslyDependencies).not.toEqual(
       expect.arrayContaining([
         '@pressly/experience-customer',
         '@pressly/pricing-system',
-        '@pressly/generated',
       ]),
     );
     expect(presslyDependencies).not.toEqual(
@@ -44,7 +43,7 @@ describe('customer browser host boundary', () => {
     expect(imports).not.toEqual(
       expect.arrayContaining([
         expect.stringMatching(
-          /^(?:next|react|react-dom|@pressly\/(?:contracts|generated|topology|[^/]+-experience|[^/]+-system))(?:\/|$)/,
+          /^(?:next|react|react-dom|@pressly\/(?:contracts|[^/]+-experience|[^/]+-system))(?:\/|$)/,
         ),
       ]),
     );

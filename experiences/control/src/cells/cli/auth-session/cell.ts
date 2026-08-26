@@ -1,8 +1,9 @@
 import { sessionSurface } from "./cli.ts"
 import { sessionContract } from "./contract.ts"
-import { declareQueryCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
-export const adminCliAuthSessionCellDeclaration = declareQueryCell({
+export const adminCliAuthSessionCellDeclaration = defineOperation({
+  kind: "query",
   id: "control.cli-auth-session.v1",
   authentication: "none",
   contract: sessionContract,

@@ -39,7 +39,7 @@ const result: ProductionOrderBacklogCommitResult = {
 }
 
 describe("Processor commit-order-backlog experience", () => {
-  it("preserves the canonical command and result contracts through generated metadata", async () => {
+  it("preserves the canonical command and result contracts through declared metadata", async () => {
     const request = vi
       .fn<CommitOrderBacklogRequestTransport>()
       .mockResolvedValue(result)

@@ -1,169 +1,113 @@
-# How to Read the Repository
+# Traversing Pressly
 
-Read Pressly by following one operation through the checked topology. Do not
-start with folders in isolation.
+Use the operation ID as the join key. Do not start with a repository-wide search
+for generic names such as `service`, `handler`, or `manager`.
 
-## Mental Model
-
-```text
-system or Experience owns meaning
-  -> cell owns one operation
-  -> topology selects it
-  -> generated catalog or client records the selection
-  -> generic host executes the protocol
-  -> app supplies process effects or browser presentation
-```
-
-The six durable systems are Access, Customers, Ingress, Orders, Pricing, and
-Production. Control, Customer, and Processor Experiences coordinate public
-capabilities across those systems.
-
-## Start With Current Authority
-
-Before product or domain work:
-
-1. Read `stateworks/memory/index.yaml`.
-2. Load the relevant domain context pack.
-3. Inspect `stateworks/work/active` and `stateworks/work/queued`.
-4. Treat code, migrations, and runtime contracts as implementation truth.
-
-Stateworks memory preserves durable meaning. Active work preserves unfinished
-status and proof. Historical plans and completed work do not override the
-current checkout.
-
-## Find an Operation
-
-If you know its stable ID, ask topology:
-
-```bash
-pnpm architecture:explain -- production.advance-stage.v1
-```
-
-The explanation names the owner, cell source, assembly key, consistency,
-authorization, surfaces, messages, consumers, and observability identity.
-
-If you do not know the ID, search the generated inventory:
-
-```bash
-rg -n "advance-stage|Advance stage" generated/architecture-map.ts
-```
-
-Then read outward to inward:
-
-1. `topology/pressly.topology.ts` — is the operation deployed?
-2. `generated/architecture-map.ts` — what does deployment expose?
-3. Owner `public.ts` and `system.ts` — how is the cell assembled?
-4. `cells/<namespace>/<verb-object>/cell.ts` — what is declared?
-5. `contract.ts` or `boundary.ts` — what crosses the boundary?
-6. `types.ts` or `.model.ts` — what does the application mean?
-7. `decide.ts`, `.policy.ts`, or `.lifecycle.ts` — what is pure?
-8. `execute.ts` or `.usecase.ts` — which effects occur and in what order?
-9. `postgres.ts`, `*.repo.ts`, or adapters — how are effects implemented?
-10. Colocated and `verification/*` tests — what is actually proved?
-
-## Trace a Protocol
-
-### HTTP or SSE
+## Start at a process entrypoint
 
 ```text
-hosts/http/src/main.ts
-  -> generated/runtime HTTP binding
-  -> generated/http-catalog.ts or generated/event-stream-catalog.ts
-  -> selected system or Experience cell
+HTTP      hosts/http/main.ts
+Jobs      hosts/jobs/src/main.ts
+CLI       hosts/cli/src/main.ts
+Control   hosts/browser/control/src/main.tsx
+Customer  hosts/browser/customer/src/app/layout.tsx
+Processor hosts/browser/processor/src/main.tsx
 ```
 
-The cell owns the structural surface. `topology/pressly-http-boundaries.ts`
-owns deployment boundary profiles. The HTTP host supplies concrete
-authentication, authorization, CSRF, rate-limit, context, observation, and
-lifecycle providers.
+Follow the host into the matching topology composition root:
+
+```text
+HTTP      topology/http.ts
+Jobs      topology/jobs.ts
+CLI       topology/cli.ts
+Database  topology/database.ts
+Control   topology/browser/control.ts
+Customer  topology/browser/customer.ts
+Processor topology/browser/processor.ts
+```
+
+## Entry-to-leaf paths
+
+### HTTP command
+
+```text
+hosts/http/main.ts
+  -> topology/http.ts
+  -> topology/runtime/http/catalog.ts
+  -> topology/runtime/http/bootstrap/target-owners.ts
+  -> systems/production/src/cells/floor/advance-stage/http.ts
+  -> systems/production/src/cells/floor/advance-stage/execute.ts
+  -> systems/production/src/cells/floor/advance-stage/decide.ts
+  -> systems/production/src/cells/floor/advance-stage/postgres.ts
+```
 
 ### Jobs
 
 ```text
 hosts/jobs/src/main.ts
-  -> generated/runtime jobs binding
-  -> generated/job-catalog.ts
-  -> Ingress or Production reaction
-  -> owner-owned durable queue capability
+  -> topology/jobs.ts
+  -> topology/runtime/jobs/catalog.ts
+  -> topology/runtime/jobs/public.ts
+  -> systems/ingress/src/cells/processing/process-inbound-event/job.ts
+  -> systems/ingress/src/cells/processing/process-inbound-event/execute.ts
+  -> systems/ingress/src/cells/processing/process-inbound-event/postgres.ts
 ```
 
-The generated catalog contains the selected job identities and retry facts.
-The Jobs host owns polling, heartbeat, lease delivery, observation, and
-shutdown; Systems own durable queue state and business disposition.
+### Processor browser workflow
 
-### CLI
+```text
+hosts/browser/processor/src/main.tsx
+  -> topology/browser/processor.ts
+  -> topology/browser-operations.ts
+  -> experiences/processor/src/browser/processor-browser-experience.tsx
+  -> experiences/processor/src/features/production-board
+  -> hosts/browser/processor/src/runtime/fetch-request.adapter.ts
+  -> production HTTP operation contract
+```
+
+### Customer pricing page
+
+```text
+hosts/browser/customer/src/app/(marketing)/services-pricing/page.tsx
+  -> topology/browser/customer.ts
+  -> experiences/customer/src/web/features/pricing
+  -> hosts/browser/customer/src/transport/fetch-request-client.ts
+  -> systems/pricing/src/cells/catalog/load-pricing-catalog
+```
+
+### CLI bootstrap
 
 ```text
 hosts/cli/src/main.ts
-  -> generated/runtime CLI binding
-  -> generated/cli-catalog.ts
-  -> Access or Control-owned cell
+  -> topology/cli.ts
+  -> topology/runtime/cli/catalog.ts
+  -> topology/runtime/cli/composition.ts
+  -> systems/access/src/cells/bootstrap/bootstrap-owner
+  -> systems/access/src/cells/bootstrap/bootstrap-owner/execute.ts
 ```
 
-The host owns environment, stdin/stdout, prompts, token storage, signals, and
-exit behavior. The owner cell owns the command meaning.
-
-### Browser
-
-```text
-frontend entry
-  -> hosts/browser/<experience>
-  -> generated/runtime browser binding
-  -> experiences/<experience>
-  -> generated/clients/<experience>.ts
-  -> generated HTTP operation
-```
-
-Browser models own presentation state only. Server capabilities and cell
-contracts remain authoritative.
-
-## Trace State
-
-For database behavior, follow:
-
-```text
-cell executor
-  -> owner Postgres adapter
-  -> injected owner schema segment
-  -> systems/<owner>/src/schema
-  -> topology/pressly-postgres-schema.ts
-```
-
-The table definition lives with the owning system. Foreign keys never cross
-owner boundaries; topology composes the independent owner segments without
-joining their persistence authority. Cross-system identity moves through
-data-only contracts and explicit reconciliation. Upgrade order lives
-separately in `platform/postgres/migrations`; the clean pre-user epoch is one
-immutable, append-only ledger, not a schema owner.
-
-For cross-system behavior, look for a versioned public capability or durable
-message. A direct peer-schema or peer-private-cell import is a defect.
-
-## Read the Generated Graph Safely
-
-Generated files are useful indexes:
-
-- `architecture-map.ts` — every selected operation and consumer;
-- `http-catalog.ts` — executable HTTP selection and profiles;
-- `job-catalog.ts` — selected Worker reactions;
-- `cli-catalog.ts` — CLI program and commands;
-- `event-stream-catalog.ts` — selected subscriptions;
-- `clients/*.ts` — browser-safe operations per Experience.
-
-Never edit them. Change an owner declaration or topology, then run:
+## Search commands
 
 ```bash
-pnpm architecture:generate
-pnpm architecture:generated:check
+rg -n "production\.advance-stage\.v1" systems experiences topology verification
+rg -n "operationId:.*production\.advance-stage" systems/production
+rg -n "advanceStage|advance-stage" topology hosts verification
+pnpm exec depcruise --config dependency-cruiser.config.mjs hosts systems experiences platform topology verification
 ```
 
-## Three Useful Questions
+The declaration's `id` tells you the owner and version. Its `surfaces` tell you
+whether to follow HTTP, jobs, CLI, or event-stream code. Its contract tells you
+the wire shape. Its executor tells you effect order. Its decision and
+PostgreSQL adapter tell you the business rule and durable state change.
 
-When traversal becomes confusing, ask:
+## What each tool proves
 
-1. Which owner can change this meaning?
-2. Which cell is the one observable operation?
-3. Is this file deciding, translating, or performing an effect?
+- TypeScript: names and types line up.
+- ESLint: local language and ownership rules hold.
+- dependency-cruiser: imports point in the allowed direction.
+- unit tests: pure decisions and orchestration branches.
+- PostgreSQL tests: transactions, locks, idempotency, and durable state.
+- flow/browser tests: assembled cross-owner behavior.
 
-Those answers should lead to one system or Experience, one cell, and one
-checked path into the deployed graph.
+Static architecture green is not proof that a live database, queue, or browser
+flow is healthy.

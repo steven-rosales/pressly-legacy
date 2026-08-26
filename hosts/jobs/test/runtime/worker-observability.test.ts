@@ -12,6 +12,7 @@ import {
   sanitizeWorkerError,
   workerHeartbeatMonitorSlug,
 } from '../../src/runtime/observability/worker-observability.ts';
+import { presslyObservabilityCatalog } from '@pressly/topology/observability';
 
 const workerTransaction = (input: {
   job: string;
@@ -86,6 +87,7 @@ describe('worker signal sinks', () => {
     let now = new Date('2026-07-12T16:00:00.000Z');
     const sinks = makeWorkerSignalSinks({
       logger: { info, warn: vi.fn() } as unknown as Logger,
+      catalog: presslyObservabilityCatalog,
       clock: { now: () => now },
       measurementLogIntervalMs: 60_000,
       sentryEnabled: true,
@@ -162,6 +164,7 @@ describe('worker signal sinks', () => {
     const count = vi.fn();
     const sinks = makeWorkerSignalSinks({
       logger: { info: vi.fn(), warn: vi.fn() } as unknown as Logger,
+      catalog: presslyObservabilityCatalog,
       measurementLogIntervalMs: 60_000,
       sentryEnabled: true,
       sentryMetrics: { count, gauge: vi.fn(), distribution: vi.fn() },
@@ -399,6 +402,7 @@ describe('worker signal sinks', () => {
     } as unknown as Logger;
     const sinks = makeWorkerSignalSinks({
       logger,
+      catalog: presslyObservabilityCatalog,
       measurementLogIntervalMs: 60_000,
       sentryEnabled: true,
       sentryMetrics: { count, gauge: vi.fn(), distribution: vi.fn() },

@@ -29,8 +29,6 @@
     { "path": "./hosts/cli" },
     { "path": "./hosts/http" },
     { "path": "./hosts/jobs" },
-    { "path": "./topology/tsconfig.build.json" },
-    { "path": "./generated" },
-    { "path": "./generated/runtime" }
+    { "path": "./topology/tsconfig.build.json" }
   ]
 }

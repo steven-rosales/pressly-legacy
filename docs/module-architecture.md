@@ -1,110 +1,76 @@
-# Cell and System Placement
+# Module architecture
 
-This is the placement contract for Pressly source.
+This document answers where new code goes. The rule is ownership first, then
+operation shape, then technical boundary.
 
-There is one grammar:
+## The six source areas
 
-```text
-systems own durable meaning
-cells own observable operations
-experiences own cross-system workflows and presentation
-hosts own protocols, frameworks, and process lifecycle
-platform owns business-neutral mechanisms
-topology selects the deployment
-generated records that selection
-```
+| Area                   | Responsibility                                    | May depend on                                    |
+| ---------------------- | ------------------------------------------------- | ------------------------------------------------ |
+| `systems/<owner>`      | durable business truth and owner operations       | own internals, public peer contracts, Platform   |
+| `experiences/<name>`   | cross-system workflows, browser features, UI      | public System capabilities/contracts, Platform   |
+| `hosts/<name>`         | framework, protocol, process, and ambient effects | Topology and Platform                            |
+| `platform/<mechanism>` | reusable business-neutral mechanism               | Platform                                         |
+| `topology/`            | deployment selection and composition              | public Systems/Experiences, Platform             |
+| `verification/`        | cross-owner and behavioral proof                  | public owner surfaces, Topology, test mechanisms |
 
-## Placement Decision
+`deploy/` contains packaging and infrastructure. It is not an application
+source area.
 
-Answer these questions in order:
+## Placement questions
+
+Ask these in order:
 
 1. Who owns the meaning?
-2. Is this one observable operation or stable shared language?
-3. Which parts decide and which parts perform effects?
-4. Does the value cross a trust, process, or durable boundary?
+2. Is this one independently observable operation?
+3. Which part decides and which part performs effects?
+4. Does it cross a wire, process, durable, or trust boundary?
+
+Use the answer:
 
 ```text
-one durable business authority
-  -> systems/<owner>
-
-one command, query, reaction, process, or subscription
-  -> systems/<owner>/src/cells/<namespace>/<verb-object>
-
-one cross-system user workflow or browser feature
-  -> experiences/<experience>
-
-one Experience-owned operation
-  -> experiences/<experience>/src/cells/<namespace>/<verb-object>
-
-business-neutral mechanism
-  -> platform/<mechanism>
-
-protocol, framework, or process lifecycle
-  -> hosts/<protocol>
-
-deployment selection and construction
-  -> topology/
-
-mechanically derived catalog, client, map, or binding
-  -> generated/
-
-container or infrastructure packaging
-  -> deploy/
+durable business meaning              -> systems/<owner>
+one command/query/reaction/process    -> systems/<owner>/src/cells/<scope>/<verb-object>
+cross-system user workflow            -> experiences/<name>
+browser feature/presentation           -> experiences/<name>/src/features
+HTTP/jobs/CLI/browser process effect  -> hosts/<host>
+business-neutral mechanism            -> platform/<mechanism>
+deployment choice and wiring          -> topology/
+cross-owner proof                     -> verification/
 ```
 
-If no semantic owner can be named, stop. `common`, `shared`, `utils`,
-`helpers`, and `services` are not owners.
+Do not create `common`, `shared`, `utils`, `services`, `modules`, or
+compatibility directories to avoid naming the owner.
 
-## Canonical Owners
+## System shape
 
-```text
-systems/{access,customers,ingress,orders,pricing,production}/
-experiences/{control,customer,processor}/
-hosts/{http,jobs,cli}/
-hosts/browser/{control,customer,processor}/
-platform/{auth,cells,codec,config,errors,http,jobs,logging,
-          observability,postgres,testing,time}/
-topology/
-generated/
-verification/
-deploy/
-```
-
-Do not add another top-level source grammar.
-
-## System Shape
-
-A System normally has this shape:
+A system normally looks like:
 
 ```text
-systems/<owner>/
+systems/production/
   src/
     cells/
-      <namespace>/
-        <verb-object>/
-    capabilities/       versioned capabilities offered to other owners
-    contracts/          genuinely shared public owner contracts
-    model/              stable owner language and pure algorithms
-    postgres/           genuinely shared owner persistence
+      floor/advance-stage/
+      scheduling/create-schedule/
+    capabilities/       versioned capabilities offered to peers
+    contracts/          versioned owner contracts
+    model/              stable pure owner language
+    postgres/           shared owner persistence, only when justified
     schema/             owner schema factories
-    system.ts           owner assembly
+    system.ts           explicit assembly
     public.ts           explicit public surface
-  package.json
 ```
 
-Directories are optional. Create only the roles the owner needs.
+The assembly is the obvious entry node for the system. It receives concrete
+mechanisms and returns named cells/capabilities. It does not contain a second
+business policy implementation.
 
-Feature-local behavior and persistence stay in the cell. Promote language or
-mechanisms only after source-observed reuse proves that a wider semantic owner
-is clearer.
+Systems never import a peer's private cell, model, persistence, or schema.
+Peer collaboration crosses an explicit public capability or contract.
 
-System assembly constructs cells and exposes an immutable record of named
-cells and capabilities. It does not implement result-dependent business
-branches.
+## Cell shape
 
-## Cell Shape
-
-A cell owns one stable operation ID.
+Keep one observable operation in one directory:
 
 ```text
 systems/production/src/cells/floor/advance-stage/
@@ -114,279 +80,182 @@ systems/production/src/cells/floor/advance-stage/
   execute.ts
   postgres.ts
   http.ts
-  events.ts
-  decide.spec.ts
-  execute.spec.ts
-  contract.spec.ts
-  postgres.int.spec.ts
+  job.ts
+  *.spec.ts
 ```
 
-This is an example, not a file quota.
+Only add files for roles the operation actually has.
 
-| Role            | Responsibility                                            |
-| --------------- | --------------------------------------------------------- |
-| `cell.ts`       | immutable declaration and binding                         |
-| `contract.ts`   | versioned serialized input, output, and expected failures |
-| `decide.ts`     | pure decision from complete facts                         |
-| `execute.ts`    | effect sequencing and atomic intent                       |
-| `postgres.ts`   | operation-owned SQL, locking, mapping, and persistence    |
-| `http.ts`       | framework-neutral HTTP mapping                            |
-| `job.ts`        | framework-neutral job mapping                             |
-| `cli.ts`        | framework-neutral CLI mapping                             |
-| `events.ts`     | produced or consumed message contracts                    |
-| `*.spec.ts`     | local contract, decision, executor, and protocol proof    |
-| `*.int.spec.ts` | real mechanism proof, normally PostgreSQL                 |
+| File          | Owns                                                                       |
+| ------------- | -------------------------------------------------------------------------- |
+| `cell.ts`     | operation identity, typed contract, policy, surfaces, and assembly binding |
+| `contract.ts` | serialized input/output/expected-failure contract                          |
+| `decide.ts`   | pure decision from complete facts                                          |
+| `execute.ts`  | effect order, transaction intent, and result-dependent signals             |
+| `postgres.ts` | owner-local SQL, locks, row mapping, and persistence                       |
+| `http.ts`     | framework-neutral request/response mapping                                 |
+| `job.ts`      | framework-neutral job mapping                                              |
+| `*.spec.ts`   | proof at the boundary that owns the behavior                               |
 
-Existing precise names such as `.usecase.ts`, `.policy.ts`, `.repo.ts`, and
-`.persistence.mapper.ts` remain valid when they name the role honestly.
+Pure decisions do not import Node, SQL, HTTP, clocks, randomness, logging, or
+process effects. Expected application failures are returned as typed data.
+Unexpected throwables are created through `@pressly/errors/*`.
 
-One independently nameable operation means one cell. A cell does not import a
-sibling cell's private implementation. Connect operations through System
-assembly and a narrow capability with explicit meaning.
+## Experience shape
 
-## Cell Declaration
-
-The declaration is immutable operational data. It states:
-
-- stable `<owner>.<verb-object>.v<version>` identity;
-- command, query, reaction, process, or subscription kind;
-- authentication and authorization requirements;
-- input, output, and expected-failure contract versions;
-- transaction, concurrency, and idempotency requirements;
-- HTTP, job, CLI, or event-stream surfaces;
-- emitted and consumed message contracts;
-- retry and timeout policy when applicable; and
-- a bounded observability operation name.
-
-Topology selects declarations and records their public source location and
-assembly key. A cell is deployed only through that checked selection.
-
-Do not hide route, retry, authorization, or idempotency behavior in host or
-topology branches.
-
-## Experience Shape
-
-An Experience coordinates public system capabilities and owns its own
-workflow and presentation language.
+An Experience is a user-facing workflow, not a second System. It may combine
+public System capabilities and contracts, then own presentation state and
+components:
 
 ```text
-experiences/<experience>/
+experiences/processor/
   src/
-    cells/                 Experience-owned observable operations
-    features/              browser features and component-local state
-    presentation/          reusable Experience presentation language
-    projections/           Experience-owned read projections, when earned
-    experience.ts          explicit assembly
-    public.ts              explicit public surface
-  package.json
+    cells/          Experience-owned server operations
+    capabilities/   narrow injected dependencies
+    contracts/      serialized Experience projections
+    features/
+      production-board/
+      scheduling/
+    browser/        browser composition and presentation
+    server.ts       explicit server assembly
+    public.ts       explicit public surface
 ```
 
-An Experience may import public system contracts and capabilities. It may not
-import system cells, models, repositories, schema, or private source.
+Experiences do not import server persistence or System internals. A browser
+component should receive data and capabilities; it should not decide server
+authorization, schedule production work, or recreate a System policy.
 
-Browser features own interaction and presentation state. Backend systems remain
-authoritative for eligibility, capacity, lifecycle, authorization, and durable
-truth.
+## Hosts
 
-## Host Shape
+Hosts own ambient effects and framework lifecycle:
 
-A host contains process and mechanism effects only.
+- `hosts/http`: Express, middleware order, request context, tracing, readiness,
+  signals, and shutdown.
+- `hosts/jobs`: polling, leases, retry timing, heartbeats, cancellation, and
+  shutdown.
+- `hosts/cli`: argv, environment, stdin/stdout, prompts, session files, and
+  exit behavior.
+- `hosts/browser/*`: React/Next/Vite startup, browser globals, SDKs, routing,
+  hydration, and lifecycle.
+
+A host should be boring. Its main job is to read configuration, call a
+Topology composition root, and hand lifecycle effects to the generic host
+implementation. It does not select business operations by hand.
+
+## Topology
+
+Topology is handwritten composition. The public files are intentionally
+small and named after the runtime they assemble:
 
 ```text
-hosts/http/                Express and HTTP process lifecycle
-hosts/jobs/                polling, leases, retry timing, shutdown
-hosts/cli/                 arguments, streams, files, prompts, exit
-hosts/browser/<surface>/   framework entrypoints and browser globals
+topology/
+  http.ts                 API composition root
+  jobs.ts                 Worker composition root
+  cli.ts                  admin composition root
+  database.ts             PostgreSQL composition root
+  browser/control.ts      Control browser composition
+  browser/customer.ts     Customer web composition
+  browser/processor.ts    Processor browser composition
+  browser-operations.ts   explicit browser wire descriptors
+  observability.ts        bounded metric/operation catalog
+  pressly.topology.ts    selected owner declarations
+  pressly-target-owners.ts owner assemblies used by the selection
 ```
 
-Hosts consume generated catalogs or runtime bindings. They do not handwrite
-business routes, jobs, operation lists, or owner construction.
+A topology file may import public owner assembly surfaces and concrete
+business-neutral mechanisms. It may provide dependencies, select cells, and
+assemble arrays. It must not decide business outcomes.
 
-Environment, process arguments, stdin/stdout, files, signals, global browser
-objects, SDK initialization, and exit behavior belong here.
-
-## Platform Shape
-
-Platform code is reusable only when it is business-neutral.
-
-Good Platform concepts include:
-
-- transactions, pools, and migration runners;
-- codecs and boundary parsing mechanisms;
-- clocks and ID sources;
-- generic authentication and cryptographic mechanisms;
-- generic HTTP and job execution;
-- structured logging and observation sinks;
-- test database safety and operation-proof registration.
-
-Platform code does not know Pressly capabilities, routes, table meaning,
-workflow states, or business owner names.
-
-## Topology, Generated, and Deploy
-
-Topology may know which owners exist because deployment selection is its job.
-It may construct several owners and connect public capabilities. It does not
-make business decisions or interpret protocols.
-
-Generated output contains only deterministic catalogs, clients, maps, and
-runtime bindings. Never edit it by hand.
-
-Deploy owns Dockerfiles, Compose/release packaging, and infrastructure assets.
-It may name image and process identities. It does not become a source owner.
-
-## Contracts and Boundaries
-
-The producer owns serialized values.
-
-- Cell contracts stay beside the owning operation.
-- Shared producer contracts move to the owning System only after genuine reuse.
-- Experience workflow contracts stay with the Experience.
-- Generic JSON, cursor, time, and digest codecs stay in Platform.
-
-Contracts contain serialized data and schema versions. They do not contain
-repositories, database rows, domain entities, framework requests, or vendor
-SDK types.
-
-Parse `unknown` at the boundary. Map synchronously into application language.
-Do not use package-root imports to expose unrelated contracts.
-
-## Decisions and Effects
-
-Pure decisions receive complete facts:
+Browser subpaths are separate so a Next server page does not pull the Control
+or Processor browser graph into its bundle:
 
 ```text
-facts + command/query -> decision or result
+@pressly/topology/browser/customer
+@pressly/topology/browser/customer-client
+@pressly/topology/browser/processor
+@pressly/topology/browser
 ```
 
-Pure roles do not read databases, clocks, environment, random sources,
-filesystem, network, logs, or process state.
+Use the narrowest runtime subpath.
 
-Executors read as a linear protocol:
+## Traversal recipes
+
+For an HTTP operation:
 
 ```text
-load replay receipt
--> load authoritative facts under the required lock
--> decide
--> commit mutation
--> append messages and audit
--> save receipt
--> return typed result
+hosts/http/main.ts
+  -> topology/http.ts
+  -> topology/runtime/http/catalog.ts
+  -> owner assembly in topology/runtime/http/bootstrap/target-owners.ts
+  -> <owner>/src/cells/<scope>/<verb-object>/http.ts
+  -> execute.ts
+  -> decide.ts or postgres.ts
 ```
 
-Business branching belongs in the decision. Replay, transaction, and mechanism
-sequencing belong in the executor.
+For a job:
 
-Create a port only for a real replacement or ownership boundary. Do not wrap a
-single concrete function in ceremonial factories, managers, or repositories.
+```text
+hosts/jobs/src/main.ts
+  -> topology/jobs.ts
+  -> topology/runtime/jobs/catalog.ts
+  -> <owner>/src/cells/<scope>/<verb-object>/job.ts
+  -> execute.ts
+  -> postgres.ts
+```
+
+For a browser action:
+
+```text
+hosts/browser/<name>/src/main.tsx
+  -> topology/browser/<name>.ts
+  -> topology/browser-operations.ts
+  -> experiences/<name>/src/browser or src/features
+  -> host transport adapter
+  -> HTTP operation contract
+```
+
+Search the versioned operation ID first. The declaration's `id` is the
+stable join key across contract, route, job, browser descriptor, tests, and
+observability. No separate architecture map is required.
+
+## Public surfaces
+
+A public entrypoint is an intentional API. It may use named exports, but
+internal files export only declarations they own.
+
+Consumers import:
+
+- exact System capability or contract subpaths;
+- exact Experience contract or browser subpaths;
+- Topology runtime subpaths for process composition;
+- Platform mechanism subpaths for technical behavior.
+
+Do not use export-star, identity aliases, aggregate business roots, or
+compatibility re-exports.
 
 ## Persistence
 
-Each System owns its schema factory. Topology alone composes the complete
-business schema.
+Each System owns a schema factory. Only
+`topology/pressly-postgres-schema.ts` composes the complete database schema.
 
-Operation-specific SQL stays in the cell. Precisely shared owner persistence
-is allowed only when at least two cells use the same semantic capability for
-the same reason.
-
-Every database-controlled write has real PostgreSQL proof for applicable
-semantics:
-
-- successful commit;
-- expected rejection without partial state;
-- unexpected failure rollback;
-- same-payload replay;
-- divergent-key conflict;
-- same-key concurrency;
-- declared optimistic or partitioned race; and
-- state-message atomicity.
-
-Mocks do not prove locks, uniqueness, isolation, rollback, or leases.
-
-## Failures
-
-Expected failures are typed data in the cell contract. They contain business
-meaning, not HTTP status codes or retry instructions.
-
-Unexpected mechanism, configuration, corruption, and invariant failures use
-explicit `@pressly/errors/*` subpaths. Construct unexpected throwables only
-through that owner.
-
-Protocol presentation belongs to the host boundary. Job retry disposition
-belongs to the job mechanism and cell declaration.
-
-## Public Surfaces
-
-Each owner exports the smallest supported surface:
-
-- versioned contracts;
-- declarations selected by topology;
-- assembly functions;
-- narrow capabilities; and
-- explicitly supported browser or read-model contracts.
-
-Non-surface files export only declarations they own. They do not import and
-re-export a symbol or create an identity alias.
-
-Direct named re-exports belong only in declared owner or package entrypoints.
-Export-star and aliased compatibility re-exports are forbidden.
-
-## Operation Proof
-
-Every selected operation has executable typed proof in its exact cell
-directory.
-
-```ts
-proveOperation({
-  operationId: 'production.advance-stage.v1',
-  declaration: advanceStageCellDeclaration,
-  layer: 'postgres',
-  scenarios: [
-    {
-      name: 'one optimistic contender commits',
-      proves: ['postgres-commit', 'declared-concurrency-race'],
-      run: proveOptimisticRace,
-    },
-  ],
-});
+```text
+owner schema factory
+  -> topology/pressly-postgres-schema.ts
+  -> topology/database.ts
+  -> platform/postgres
 ```
 
-The operation ID, layer, scenario name, and claims remain literal. The strict
-verifier rejects bare proof references, owner-root matrices, import-closure
-credit, cross-system fallback, missing claims, and shared cell paths.
+SQL belongs in the owning cell's `postgres.ts`, an owner-local
+`*.postgres.ts`, or a precisely shared owner persistence module. Storage rows
+are representations, not domain entities. Qualified mappers are synchronous
+and pure.
 
-Cross-system conformance and browser workflows remain valuable, but they never
-replace missing local proof.
+## Enforcement
 
-## Forbidden Residue
-
-Do not introduce:
-
-- `apps/`, `modules/`, `packages/`, or `infra/` source roots;
-- compatibility or legacy directories;
-- central business contract or schema authorities;
-- generic `common`, `shared`, `utils`, `helpers`, or `services` buckets;
-- sibling-cell private imports;
-- host business branches;
-- runtime filesystem discovery;
-- export-star or identity aliases;
-- business behavior generated from metadata; or
-- a package per cell.
-
-## Review Checklist
-
-Before treating a structural change as complete:
-
-1. Name the semantic owner and verb-object operation.
-2. Confirm one selected operation resolves to one `cell.ts`.
-3. Keep contracts, decisions, effects, persistence, protocol mapping, and tests
-   local when applicable.
-4. Verify dependency direction and explicit public surfaces.
-5. Verify every required typed proof claim executes locally.
-6. Run architecture, lint, type, affected unit, PostgreSQL, browser, and build
-   gates in proportion to risk.
-7. Delete the replaced source and compatibility residue.
-
-Run at minimum:
+Dependency-cruiser checks import direction, cycles, and source-vs-build
+resolution. ESLint checks language, public surfaces, purity, SQL placement,
+and throwable ownership. TypeScript and tests provide behavior and contract
+proof.
 
 ```bash
 pnpm architecture:check
@@ -394,3 +263,6 @@ pnpm lint:architecture
 pnpm typecheck
 pnpm test:topology
 ```
+
+Static gates prove structure only. Run the affected owner, host, PostgreSQL,
+flow, and browser gates before claiming runtime equivalence.

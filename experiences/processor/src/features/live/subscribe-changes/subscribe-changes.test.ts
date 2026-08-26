@@ -19,7 +19,7 @@ const operation: SubscribeChangesClientOperation = {
 }
 
 describe("Processor subscribe-changes experience", () => {
-  it("renders the generated stream route and retains bounded metadata", () => {
+  it("renders the declared stream route and retains bounded metadata", () => {
     const describe = makeDescribeSubscribeChangesEventSource({ operation })
 
     const descriptor = describe({

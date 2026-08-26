@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest"
 import { makeConfirmOrderOvertimeClient } from "./client.ts"
 
 describe("Processor overtime-confirmation client", () => {
-  it("uses generated confirm-overtime metadata and preserves the proposal fence", async () => {
+  it("uses declared confirm-overtime metadata and preserves the proposal fence", async () => {
     const result = {
       status: "not_placed" as const,
       mode: "automatic" as const,

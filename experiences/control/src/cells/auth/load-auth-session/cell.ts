@@ -5,13 +5,14 @@ import type {
 } from "../../../auth/model/schemas.ts"
 import { controlLoadSessionContract } from "./contract.ts"
 import { sessionSurface } from "./http.ts"
-import { declareQueryCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
-export const controlLoadSessionCellDeclaration = declareQueryCell<
+export const controlLoadSessionCellDeclaration = defineOperation<
   CookieSessionInput,
   ControlSessionOutput,
   ControlSessionFailure
 >({
+  kind: "query",
   id: "control.load-auth-session.v1",
   authentication: "none",
   contract: controlLoadSessionContract,

@@ -16,7 +16,7 @@ import {
   invitationPeerFailure,
 } from "../../../management/invitations/failure.ts"
 import { acceptExistingPasswordCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 import { invariantViolationError } from "@pressly/errors/factories"
 
 type PreviewExecute = AccessExecute<"previewWorkforceInvitation">
@@ -214,7 +214,7 @@ export type AcceptExistingPasswordDependencies = BootstrapDependencies &
 export const makeAcceptExistingPasswordCell = (
   dependencies: AcceptExistingPasswordDependencies,
 ) =>
-  bindCell(acceptExistingPasswordCellDeclaration, async (input) => {
+  defineOperation(acceptExistingPasswordCellDeclaration, async (input) => {
     const preview = await dependencies.previewInvitation.execute(
       input.acceptanceToken,
     )

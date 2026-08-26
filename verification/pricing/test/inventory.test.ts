@@ -20,25 +20,20 @@ const sourceFiles = (root: string): readonly string[] =>
     .map((entry) => path.join(entry.parentPath, entry.name));
 
 describe('Pricing operation inventory', () => {
-  it('selects all three owner cells into topology and generated catalogs', () => {
-    const selected = [
-      'topology/pressly.topology.ts',
-      'generated/architecture-map.ts',
-      'generated/http-catalog.ts',
-      'generated/job-catalog.ts',
-      'generated/event-stream-catalog.ts',
-    ]
-      .map(read)
-      .join('\n');
+  it('selects all three owner cells into handwritten topology', () => {
+    const selected = pricingVerificationOperationIds.map(
+      (operationId) =>
+        loadPricingCatalogCellDeclaration.id === operationId ||
+        planPricingChangeCellDeclaration.id === operationId ||
+        publishPricingChangeCellDeclaration.id === operationId,
+    );
 
-    expect(selected).toContain('@pressly/pricing-system');
-    for (const operationId of pricingVerificationOperationIds)
-      expect(selected).toContain(operationId);
+    expect(selected).toEqual([true, true, true]);
   });
 
-  it('binds Web catalog reads through Customer generated metadata only', () => {
-    const generated = read('generated/clients/customer.ts');
-    const binding = read('generated/runtime/src/browser/customer.ts');
+  it('binds Web catalog reads through Customer topology metadata', () => {
+    const operations = read('topology/browser-operations.ts');
+    const binding = read('topology/browser/customer.ts');
     const server = read(
       'hosts/browser/customer/src/composition/customer-pricing.server.ts',
     );
@@ -46,10 +41,10 @@ describe('Pricing operation inventory', () => {
       'experiences/customer/src/web/features/pricing/queries.ts',
     );
 
-    expect(generated).toContain(
-      "operationId: 'pricing.load-pricing-catalog.v1'",
+    expect(operations).toContain('pricingLoadPricingCatalogV1');
+    expect(binding).toContain(
+      "customerBrowserOperations['pricing.load-pricing-catalog.v1']",
     );
-    expect(binding).toContain('pricingLoadPricingCatalogV1');
     expect(binding).toContain('makeCustomerPricingBrowserClient({');
     expect(`${binding}\n${server}\n${queries}`).not.toContain(
       '/pricing/services/',

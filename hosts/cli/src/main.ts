@@ -5,9 +5,9 @@ import { normalizeUnknownError } from '@pressly/errors/app-error';
 import { presentAppError } from '@pressly/errors/presentation';
 import {
   composeCliRuntime,
-  createCliDatabase,
+  createPresslyDatabase,
   resolveCliRuntimeInvocation,
-} from '@pressly/generated-runtime/cli';
+} from '@pressly/topology/cli';
 import { apiFailure } from '@pressly/http';
 import { runCliRuntime } from './runtime/process-runtime.js';
 
@@ -29,7 +29,7 @@ const main = async (): Promise<number> => {
         invocation,
         environment: process.env,
         io,
-        dependencies: { database: createCliDatabase },
+        dependencies: { database: createPresslyDatabase },
       },
       composeCliRuntime,
     );

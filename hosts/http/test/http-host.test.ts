@@ -4,9 +4,8 @@ import {
   decode,
   defineBoundaryContract,
   defineCellContract,
-  defineCommandCell,
+  defineOperation,
   defineHttpCatalog,
-  defineQueryCell,
   http,
   type HttpRequest,
 } from '@pressly/cells';
@@ -177,7 +176,8 @@ describe('generic HTTP catalog host', () => {
   it('authenticates before exposing staged scope validation', async () => {
     const events: string[] = [];
     let executions = 0;
-    const cell = defineCommandCell<TestInput, TestOutput, TestFailure>({
+    const cell = defineOperation<TestInput, TestOutput, TestFailure>({
+      kind: 'command',
       id: 'example.authentication-first.v1',
       contract: defineCellContract({
         input: inputContract(events),
@@ -264,7 +264,8 @@ describe('generic HTTP catalog host', () => {
   it('registers an exact public GET and still runs generic host hooks', async () => {
     const events: string[] = [];
     let executions = 0;
-    const cell = defineQueryCell<TestInput, TestOutput, TestFailure>({
+    const cell = defineOperation<TestInput, TestOutput, TestFailure>({
+      kind: 'query',
       id: 'example.read.v1',
       contract: defineCellContract({
         input: inputContract(events),
@@ -333,7 +334,8 @@ describe('generic HTTP catalog host', () => {
   it('requires authentication without authorization and resolves declared context after pure validation', async () => {
     const events: string[] = [];
     let executions = 0;
-    const cell = defineQueryCell<TestInput, TestOutput, TestFailure>({
+    const cell = defineOperation<TestInput, TestOutput, TestFailure>({
+      kind: 'query',
       id: 'example.authenticated-context.v1',
       authentication: 'required',
       contract: defineCellContract({
@@ -410,7 +412,8 @@ describe('generic HTTP catalog host', () => {
 
   it('stops when asynchronous context resolution ends the response', async () => {
     const events: string[] = [];
-    const cell = defineQueryCell<TestInput, TestOutput, TestFailure>({
+    const cell = defineOperation<TestInput, TestOutput, TestFailure>({
+      kind: 'query',
       id: 'example.context-terminal.v1',
       authentication: 'required',
       contract: defineCellContract({
@@ -468,7 +471,8 @@ describe('generic HTTP catalog host', () => {
     const events: string[] = [];
     const errors: AppError[] = [];
     let executions = 0;
-    const cell = defineCommandCell<TestInput, TestOutput, TestFailure>({
+    const cell = defineOperation<TestInput, TestOutput, TestFailure>({
+      kind: 'command',
       id: 'example.before-input.v1',
       contract: defineCellContract({
         input: inputContract(events),
@@ -614,7 +618,8 @@ describe('generic HTTP catalog host', () => {
       },
       encode: (value) => value,
     });
-    const cell = defineCommandCell<TestInput, TestOutput, TestFailure>({
+    const cell = defineOperation<TestInput, TestOutput, TestFailure>({
+      kind: 'command',
       id: 'example.declared-invalid-request.v1',
       contract: defineCellContract({
         input: contract,
@@ -735,7 +740,8 @@ describe('generic HTTP catalog host', () => {
       attemptedValue: 'blocked-value',
     };
     let executions = 0;
-    const cell = defineCommandCell<TestInput, TestOutput, TestFailure>({
+    const cell = defineOperation<TestInput, TestOutput, TestFailure>({
+      kind: 'command',
       id: 'example.after-input.v1',
       contract: defineCellContract({
         input: inputContract(events),
@@ -847,7 +853,8 @@ describe('generic HTTP catalog host', () => {
     const events: string[] = [];
     const errors: AppError[] = [];
     let executions = 0;
-    const cell = defineCommandCell<TestInput, TestOutput, TestFailure>({
+    const cell = defineOperation<TestInput, TestOutput, TestFailure>({
+      kind: 'command',
       id: 'example.invalid-input.v1',
       contract: defineCellContract({
         input: inputContract(events),
@@ -903,7 +910,8 @@ describe('generic HTTP catalog host', () => {
   it('returns the execution promise directly to the Express 5 error boundary', async () => {
     const events: string[] = [];
     let executions = 0;
-    const cell = defineCommandCell<TestInput, TestOutput, TestFailure>({
+    const cell = defineOperation<TestInput, TestOutput, TestFailure>({
+      kind: 'command',
       id: 'example.rejected-promise.v1',
       contract: defineCellContract({
         input: inputContract(events),

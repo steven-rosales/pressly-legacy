@@ -5,13 +5,14 @@ import type {
 } from "../../../management/invitations/contracts.ts"
 import { acceptExistingPasswordContract } from "./contract.ts"
 import { passwordSurface } from "./http.ts"
-import { declareCommandCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
-export const acceptExistingPasswordCellDeclaration = declareCommandCell<
+export const acceptExistingPasswordCellDeclaration = defineOperation<
   AcceptExistingPasswordInput,
   InvitationBootstrapOutput,
   InvitationFailure
 >({
+  kind: "command",
   id: "control.accept-existing-invitation-password.v1",
   authentication: "none",
   contract: acceptExistingPasswordContract,

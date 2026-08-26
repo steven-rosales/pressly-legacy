@@ -100,7 +100,7 @@ describe('production scheduling conformance inventory', () => {
         consumer: 'processor',
         consumerAnchor: { file: expect.any(String) },
       });
-      expect(entry.processorOwnership.client).toBe('generated');
+      expect(entry.processorOwnership.client).toBe('handwritten');
       expect(entry.http.authentication).toBe('required');
       expect(entry.http.boundaryOrder.at(0)).toBe('authentication');
       expect(entry.http.boundaryOrder.at(-1)).toBe('authorization');

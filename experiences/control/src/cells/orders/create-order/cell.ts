@@ -5,18 +5,19 @@ import type {
 } from "../../../management/orders/contracts.ts"
 import { createControlOrderContract } from "./contract.ts"
 import { createSurface } from "./http.ts"
-import { declareCommandCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 export const writeAuthorization = {
   capability: "orders:write",
   timing: "before-input",
 } as const
 
-export const createControlOrderCellDeclaration = declareCommandCell<
+export const createControlOrderCellDeclaration = defineOperation<
   CreateControlOrderInput,
   OrderMutation,
   ControlOrderOrLocationFailure
 >({
+  kind: "command",
   id: "control.create-order.v1",
   contract: createControlOrderContract,
   authorization: writeAuthorization,

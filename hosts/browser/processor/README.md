@@ -76,7 +76,7 @@ idempotency keys back to the API.
 ## Architecture
 
 `src/main.tsx` reads the browser environment and starts the host from the
-generated Processor runtime binding. The generated binding composes the
+topology Processor composition. The topology composition assembles the
 Experience application; the host never imports system business code.
 
 ```text
@@ -95,8 +95,8 @@ experiences/processor/src/
   contracts/                       Experience-owned serialized projections
 ```
 
-Dependency direction is host to generated/runtime and platform mechanisms;
-the generated runtime connects the host to `@pressly/experience-processor`.
+Dependency direction is host to topology and platform mechanisms;
+the topology composition connects the host to `@pressly/experience-processor`.
 Processor localization, navigation, components, and product features stay in
-the Experience. Systems remain reachable only through declared generated
-clients or narrow public capabilities selected by topology.
+the Experience. Systems remain reachable only through explicit topology
+descriptors or narrow public capabilities selected by topology.

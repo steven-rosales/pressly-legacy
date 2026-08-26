@@ -86,7 +86,7 @@ REPORT_PATH="${PRESSLY_SMOKE_REPORT_PATH:-/tmp/${PROJECT_NAME}-report.json}"
 [[ ! -e "$REPORT_PATH" ]] || fail "report path already exists: $REPORT_PATH"
 REPORT_CREATED=false
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/pressly-v2-smoke.XXXXXX")"
-HTTP_ROUTE_CENSUS_REPORT="$WORK_DIR/generated-http-route-mount-census.json"
+HTTP_ROUTE_CENSUS_REPORT="$WORK_DIR/handwritten-http-route-mount-census.json"
 MFA_TOTP_SECRET_FILE="$WORK_DIR/owner-mfa-totp-secret.txt"
 MFA_TOTP_COUNTER_FILE="$WORK_DIR/owner-mfa-totp-counter.txt"
 
@@ -727,7 +727,7 @@ run_generated_http_route_mount_census() {
   if ! compose --profile tools run --rm -T --no-deps --workdir /repo migrate \
     node --import tsx tooling/http-route-census/main.ts \
     --origin http://api:4000 > "$HTTP_ROUTE_CENSUS_REPORT"; then
-    fail 'generated HTTP route mount census found an unmounted route, unsupported method, server failure, or network failure.'
+    fail 'HTTP route mount census found an unmounted route, unsupported method, server failure, or network failure.'
   fi
 
   node --input-type=module - "$HTTP_ROUTE_CENSUS_REPORT" <<'NODE'
@@ -737,8 +737,8 @@ const { toolingError } = await import(process.env.PRESSLY_TOOLING_ERROR_FACTORY_
 const smokeFailure = (message) => toolingError({ code: 'production_topology_smoke_failure', message });
 const report = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 if (
-  report?.proof !== 'generated-http-route-mount-census' ||
-  report?.catalogSource !== '@pressly/generated/http-catalog:httpRouteManifest' ||
+  report?.proof !== 'handwritten-http-route-mount-census' ||
+  report?.catalogSource !== '@pressly/topology/http:httpRouteManifest' ||
   report?.scope !== 'mounted HTTP dispatch reachability only' ||
   report?.passed !== true ||
   !Number.isSafeInteger(report.routeCount) ||
@@ -2209,7 +2209,7 @@ compose up -d --wait --wait-timeout 180 api web worker processor control caddy
 assert_release_images release-a
 wait_for_health api
 probe_routes
-echo '[v2] invoking every generated HTTP method and path through the composed API runtime'
+echo '[v2] invoking every declared HTTP method and path through the composed API runtime'
 run_generated_http_route_mount_census
 echo '[v2] enrolling MFA for the synthetic owner through the Control cookie and CSRF boundary'
 enroll_owner_mfa

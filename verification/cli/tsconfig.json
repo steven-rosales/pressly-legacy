@@ -14,9 +14,6 @@
       "path": "../../experiences/control/tsconfig.json"
     },
     {
-      "path": "../../generated/tsconfig.json"
-    },
-    {
       "path": "../../hosts/cli/tsconfig.json"
     },
     {

@@ -16,7 +16,7 @@ import {
   resolveOperationalOrders,
 } from "../../../server/model/operational-order.ts"
 import { loadProcessorRemainingDayForecastCellDeclaration } from "./cell.ts"
-import { bindCell } from "@pressly/cells"
+import { defineOperation } from "@pressly/cells"
 
 export type LoadRemainingDayForecast = ProductionQuery<
   LoadProcessorRemainingDayForecastInput,
@@ -80,15 +80,18 @@ export const makeLoadProcessorRemainingDayForecastCell = (dependencies: {
   loadForecast: LoadRemainingDayForecast
   resolveOrderCanonical: ResolveOperationalOrderCanonical
 }) =>
-  bindCell(loadProcessorRemainingDayForecastCellDeclaration, async (input) => {
-    const forecast = await dependencies.loadForecast(input)
-    return forecast.kind === "failure"
-      ? productionQueryFailureOutcome(forecast.failure)
-      : {
-          kind: "success",
-          value: await project(
-            forecast.value,
-            dependencies.resolveOrderCanonical
-          ),
-        }
-  })
+  defineOperation(
+    loadProcessorRemainingDayForecastCellDeclaration,
+    async (input) => {
+      const forecast = await dependencies.loadForecast(input)
+      return forecast.kind === "failure"
+        ? productionQueryFailureOutcome(forecast.failure)
+        : {
+            kind: "success",
+            value: await project(
+              forecast.value,
+              dependencies.resolveOrderCanonical
+            ),
+          }
+    }
+  )

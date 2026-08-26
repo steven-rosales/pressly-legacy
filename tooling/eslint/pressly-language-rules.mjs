@@ -265,7 +265,7 @@ export const expectedFailureImportRestrictions = Object.freeze({
 const dependencyCruiserSourcePaths = (repositoryRoot) => {
   const sourceMapPath = path.join(
     repositoryRoot,
-    'tooling/typescript/dependency-cruiser.generated.json',
+    'tooling/typescript/dependency-cruiser.json',
   );
   try {
     const sourceMap = JSON.parse(readFileSync(sourceMapPath, 'utf8'));
@@ -288,7 +288,7 @@ const dependencyCruiserSourcePaths = (repositoryRoot) => {
     throw toolingError({
       code: 'dependency_cruiser_source_map_unavailable',
       message:
-        'Dependency Cruiser source mapping is unavailable. Run pnpm architecture:generate.',
+        'Dependency Cruiser source mapping is unavailable. Check tooling/typescript/dependency-cruiser.json.',
       cause,
     });
   }
@@ -316,7 +316,7 @@ const explicitSourceSurfaces = (repositoryRoot) => {
 };
 
 const sourceRoots = (repositoryRoot) =>
-  ['experiences', 'generated', 'hosts', 'platform', 'systems', 'topology']
+  ['experiences', 'hosts', 'platform', 'systems', 'topology']
     .map((sourceRoot) => path.resolve(repositoryRoot, sourceRoot))
     .sort((left, right) => right.length - left.length);
 
@@ -371,7 +371,7 @@ export const makePresslyLanguagePlugin = ({ repositoryRoot }) => {
   const surfaces = explicitSourceSurfaces(repositoryRoot);
   const ownedSourceRoots = sourceRoots(repositoryRoot);
   const targetRootPattern =
-    /^(?:experiences|generated|hosts|platform|systems|topology)\//;
+    /^(?:experiences|hosts|platform|systems|topology)\//;
 
   return Object.freeze({
     rules: Object.freeze({
@@ -461,7 +461,7 @@ export const makePresslyLanguagePlugin = ({ repositoryRoot }) => {
           schema: Object.freeze([]),
           messages: Object.freeze({
             businessLiteral:
-              'Host source cannot own business provider tokens, operation ids, job labels, command selections, or business identities. Read them from generated topology data.',
+              'Host source cannot own business provider tokens, operation ids, job labels, command selections, or business identities. Read them from topology data.',
           }),
         }),
         create(context) {
